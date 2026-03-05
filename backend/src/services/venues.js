@@ -61,7 +61,7 @@ class VenueService {
 
     try {
       const { data } = await axios.get(`${FSQ_BASE}/places/${foursquareId}`, {
-        headers: { Authorization: `fsq3${config.foursquare.apiKey}` },
+        headers: { Authorization: config.foursquare.apiKey },
         params: { fields: 'fsq_id,name,location,categories,geocodes' },
       });
 
@@ -99,7 +99,7 @@ class VenueService {
   async _fetchFromFoursquare({ latitude, longitude, radiusM, limit }) {
     try {
       const { data } = await axios.get(`${FSQ_BASE}/places/search`, {
-        headers: { Authorization: `fsq3${config.foursquare.apiKey}` },
+        headers: { Authorization: config.foursquare.apiKey },
         params: {
           ll: `${latitude},${longitude}`,
           radius: radiusM,

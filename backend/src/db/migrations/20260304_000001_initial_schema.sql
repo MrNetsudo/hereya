@@ -1,6 +1,5 @@
 -- LOCI — Initial Schema
 -- Migration: 20260304_000001_initial_schema.sql
--- Run via: npm run migrate
 
 -- Enable PostGIS for geospatial queries
 CREATE EXTENSION IF NOT EXISTS postgis;
@@ -51,7 +50,9 @@ CREATE TABLE IF NOT EXISTS venues (
 );
 
 CREATE INDEX IF NOT EXISTS idx_venues_geo
-  ON venues USING GIST (ST_MakePoint(longitude::float, latitude::float)::geography);
+  ON venues USING GIST (
+    CAST(ST_MakePoint(CAST(longitude AS float8), CAST(latitude AS float8)) AS geography)
+  );
 
 -- ── Rooms ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rooms (
@@ -161,13 +162,13 @@ RETURNS SETOF venues AS $$
   SELECT * FROM venues
   WHERE is_active = true
     AND ST_DWithin(
-      ST_MakePoint(longitude::float, latitude::float)::geography,
-      ST_MakePoint(p_lng, p_lat)::geography,
+      CAST(ST_MakePoint(CAST(longitude AS float8), CAST(latitude AS float8)) AS geography),
+      CAST(ST_MakePoint(p_lng, p_lat) AS geography),
       p_radius_m
     )
   ORDER BY ST_Distance(
-    ST_MakePoint(longitude::float, latitude::float)::geography,
-    ST_MakePoint(p_lng, p_lat)::geography
+    CAST(ST_MakePoint(CAST(longitude AS float8), CAST(latitude AS float8)) AS geography),
+    CAST(ST_MakePoint(p_lng, p_lat) AS geography)
   ) ASC
   LIMIT 20;
 $$ LANGUAGE sql STABLE;

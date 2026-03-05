@@ -19,6 +19,9 @@ const userRoutes = require('./api/routes/users');
 
 const app = express();
 
+// Trust Nginx reverse proxy (one hop)
+app.set('trust proxy', 1);
+
 // ── Security ──────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({

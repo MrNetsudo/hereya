@@ -5,44 +5,55 @@ const { supabaseAdmin } = require('../utils/supabase');
 const config = require('../config');
 const logger = require('../utils/logger');
 
-const FSQ_BASE = 'https://api.foursquare.com/v3';
+// OpenStreetMap Overpass API — free, no key required
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const CACHE_TTL_HOURS = 24;
+
+// OSM amenity/leisure tags that map to real social venues
+const OSM_VENUE_TAGS = [
+  'bar', 'pub', 'nightclub', 'restaurant', 'cafe', 'fast_food',
+  'food_court', 'cinema', 'theatre', 'arts_centre',
+  'stadium', 'sports_centre', 'arena', 'concert_hall',
+  'casino', 'marketplace', 'events_venue',
+];
+
+const OSM_LEISURE_TAGS = ['stadium', 'sports_centre', 'arena', 'pitch'];
 
 /**
  * VenueService
- * Wraps the Foursquare Places API v3.
- * Venues are cached in PostgreSQL — Foursquare is only hit when cache is stale.
+ * Sources venue data from OpenStreetMap via Overpass API.
+ * Results cached in Postgres for 24 hours.
+ *
+ * When Foursquare enterprise credentials are available, set LOCI_FOURSQUARE_API_KEY
+ * and this service will prefer FSQ data automatically (future upgrade path).
  */
 class VenueService {
   /**
    * Get venues near a lat/lng coordinate.
-   * Returns cached results when fresh, otherwise fetches from Foursquare.
    */
   async getNearbyVenues({ latitude, longitude, radiusM = 500, limit = 20 }) {
-    // 1. Try cache first
+    // 1. Try DB cache first
     const cached = await this._getCachedNearby(latitude, longitude, radiusM);
     if (cached.length > 0) {
       logger.debug('Venue cache hit', { count: cached.length });
-      return cached;
+      return cached.slice(0, limit);
     }
 
-    // 2. Fetch from Foursquare
-    if (!config.foursquare.apiKey) {
-      logger.warn('Foursquare API key not configured — returning empty venues');
+    // 2. Fetch from OpenStreetMap Overpass
+    const osmVenues = await this._fetchFromOSM({ latitude, longitude, radiusM });
+    if (!osmVenues.length) {
+      logger.warn('No venues found from OSM', { latitude, longitude, radiusM });
       return [];
     }
 
-    const fsqVenues = await this._fetchFromFoursquare({ latitude, longitude, radiusM, limit });
-    if (!fsqVenues.length) return [];
-
     // 3. Upsert into DB cache
-    const upserted = await this._upsertVenues(fsqVenues);
-    logger.info('Foursquare venues cached', { count: upserted.length });
-    return upserted;
+    const upserted = await this._upsertVenues(osmVenues);
+    logger.info('OSM venues cached', { count: upserted.length });
+    return upserted.slice(0, limit);
   }
 
   /**
-   * Get or create a single venue by Foursquare ID.
+   * Get a single venue by internal ID.
    */
   async getVenueById(venueId) {
     const { data } = await supabaseAdmin
@@ -51,32 +62,6 @@ class VenueService {
       .eq('id', venueId)
       .single();
     return data;
-  }
-
-  /**
-   * Sync a single venue from Foursquare (refresh cache).
-   */
-  async syncVenue(foursquareId) {
-    if (!config.foursquare.apiKey) return null;
-
-    try {
-      const { data } = await axios.get(`${FSQ_BASE}/places/${foursquareId}`, {
-        headers: { Authorization: config.foursquare.apiKey },
-        params: { fields: 'fsq_id,name,location,categories,geocodes' },
-      });
-
-      const mapped = this._mapFsqVenue(data);
-      const { data: venue } = await supabaseAdmin
-        .from('venues')
-        .upsert(mapped, { onConflict: 'foursquare_id' })
-        .select()
-        .single();
-
-      return venue;
-    } catch (err) {
-      logger.error('Failed to sync venue from Foursquare', { foursquareId, err: err.message });
-      return null;
-    }
   }
 
   // ── Private helpers ──────────────────────────────────────
@@ -90,73 +75,83 @@ class VenueService {
 
     if (!data?.length) return [];
 
-    // Filter out stale entries (older than TTL)
     const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000).toISOString();
-    const fresh = data.filter((v) => !v.foursquare_synced_at || v.foursquare_synced_at > cutoff);
-    return fresh;
+    return data.filter((v) => !v.osm_synced_at || v.osm_synced_at > cutoff);
   }
 
-  async _fetchFromFoursquare({ latitude, longitude, radiusM, limit }) {
+  async _fetchFromOSM({ latitude, longitude, radiusM }) {
+    const amenityFilter = OSM_VENUE_TAGS.join('|');
+    const leisureFilter = OSM_LEISURE_TAGS.join('|');
+
+    // Overpass QL — nodes and ways matching venue tags within radius
+    const query = `
+[out:json][timeout:15];
+(
+  node["amenity"~"^(${amenityFilter})$"](around:${radiusM},${latitude},${longitude});
+  way["amenity"~"^(${amenityFilter})$"](around:${radiusM},${latitude},${longitude});
+  node["leisure"~"^(${leisureFilter})$"](around:${radiusM},${latitude},${longitude});
+  way["leisure"~"^(${leisureFilter})$"](around:${radiusM},${latitude},${longitude});
+);
+out center;
+`.trim();
+
     try {
-      const { data } = await axios.get(`${FSQ_BASE}/places/search`, {
-        headers: { Authorization: config.foursquare.apiKey },
-        params: {
-          ll: `${latitude},${longitude}`,
-          radius: radiusM,
-          limit,
-          fields: 'fsq_id,name,location,categories,geocodes,rating,hours',
-          // Exclude categories that aren't venue-like
-          exclude_all_chains: false,
-        },
+      const { data } = await axios.post(OVERPASS_URL, query, {
+        headers: { 'Content-Type': 'text/plain' },
+        timeout: 18000,
       });
 
-      return (data.results || []).map(this._mapFsqVenue.bind(this));
+      return (data.elements || [])
+        .filter((el) => el.tags?.name)         // must have a name
+        .map((el) => this._mapOSMElement(el));
     } catch (err) {
-      logger.error('Foursquare API error', { err: err.response?.data || err.message });
+      logger.error('Overpass API error', { err: err.message });
       return [];
     }
   }
 
-  _mapFsqVenue(fsqPlace) {
-    const geocode = fsqPlace.geocodes?.main;
-    const location = fsqPlace.location || {};
-    const primaryCategory = fsqPlace.categories?.[0];
+  _mapOSMElement(el) {
+    // Ways have a `center` object; nodes have lat/lon directly
+    const lat = el.lat ?? el.center?.lat ?? 0;
+    const lon = el.lon ?? el.center?.lon ?? 0;
+    const tags = el.tags || {};
+    const amenity = tags.amenity || tags.leisure || 'venue';
 
     return {
-      foursquare_id: fsqPlace.fsq_id,
-      name: fsqPlace.name,
-      address: location.address || null,
-      city: location.locality || location.city || null,
-      state: location.region || null,
-      country: location.country || 'US',
-      category: primaryCategory?.short_name?.toLowerCase() || 'venue',
-      latitude: geocode?.latitude ?? location.lat ?? 0,
-      longitude: geocode?.longitude ?? location.lng ?? 0,
-      geofence_radius_m: this._getRadiusForCategory(primaryCategory?.name),
+      osm_id: String(el.id),
+      name: tags.name,
+      address: [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' ') || null,
+      city: tags['addr:city'] || null,
+      state: tags['addr:state'] || null,
+      country: tags['addr:country'] || 'US',
+      category: amenity,
+      latitude: lat,
+      longitude: lon,
+      geofence_radius_m: this._getRadiusForCategory(amenity),
       is_active: true,
-      foursquare_synced_at: new Date().toISOString(),
+      osm_synced_at: new Date().toISOString(),
     };
   }
 
   async _upsertVenues(venues) {
     const { data, error } = await supabaseAdmin
       .from('venues')
-      .upsert(venues, { onConflict: 'foursquare_id' })
+      .upsert(venues, { onConflict: 'osm_id', ignoreDuplicates: false })
       .select();
 
     if (error) {
-      logger.error('Failed to upsert venues', { error });
+      logger.error('Failed to upsert venues', { error: error.message });
       return [];
     }
     return data || [];
   }
 
-  _getRadiusForCategory(categoryName = '') {
-    const name = categoryName.toLowerCase();
-    if (name.includes('stadium') || name.includes('arena') || name.includes('ballpark')) {
+  _getRadiusForCategory(category = '') {
+    const c = category.toLowerCase();
+    if (['stadium', 'arena', 'ballpark', 'sports_centre'].some((k) => c.includes(k))) {
       return config.geofence.stadiumRadiusM;
     }
-    if (name.includes('park') || name.includes('airport') || name.includes('mall')) {
+    if (['park', 'airport', 'mall', 'marketplace'].some((k) => c.includes(k))) {
       return 200;
     }
     return config.geofence.defaultRadiusM;

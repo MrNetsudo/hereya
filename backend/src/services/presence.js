@@ -59,11 +59,14 @@ class PresenceService {
       return { isPresent: false, venue: null, confidence: bestConfidence };
     }
 
-    // Record presence
-    await this._recordPresence({ userId, venueId: bestMatch.id, confidence, method: 'gps' });
+    // Record presence (upsert — safe on repeated check-ins)
+    await this._recordPresence({ userId, venueId: bestMatch.id, confidence: bestConfidence, method: 'gps' });
 
     // Ensure room exists and is active for this venue
     const room = await this._ensureActiveRoom(bestMatch.id);
+
+    // Auto-join room_members so the user can send messages immediately
+    await this._joinRoom({ roomId: room.id, userId, displayName: null });
 
     return {
       isPresent: true,
@@ -150,13 +153,38 @@ class PresenceService {
   }
 
   async _recordPresence({ userId, venueId, confidence, method }) {
-    await supabaseAdmin.from('user_presence').insert({
+    // Upsert so repeated check-ins don't throw unique constraint errors
+    await supabaseAdmin.from('user_presence').upsert({
       user_id: userId,
       venue_id: venueId,
       confidence,
       verification_method: method,
       status: 'present',
-    });
+      checked_in_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,venue_id' });
+  }
+
+  async _joinRoom({ roomId, userId, displayName }) {
+    // Upsert room membership — marks user as present
+    const { error } = await supabaseAdmin.from('room_members').upsert({
+      room_id: roomId,
+      user_id: userId,
+      is_present: true,
+      session_display_name: displayName,
+      left_at: null,
+      joined_at: new Date().toISOString(),
+    }, { onConflict: 'room_id,user_id' });
+
+    if (error) {
+      logger.warn('Could not auto-join room_members', { roomId, userId, error: error.message });
+    }
+
+    // Activate warming room now that someone joined
+    await supabaseAdmin
+      .from('rooms')
+      .update({ status: 'active' })
+      .eq('id', roomId)
+      .eq('status', 'warming');
   }
 
   async _updateRoomOccupancy(venueId) {

@@ -46,7 +46,12 @@ router.get('/:room_id', requireAuth, async (req, res, next) => {
     const { data: messages, error } = await query;
     if (error) return next(error);
 
-    return res.json({ messages: messages.reverse(), has_more: messages.length === limit });
+    const shaped = messages.reverse().map(({ users, ...m }) => ({
+      ...m,
+      user: users ? { id: users.id, display_name: users.display_name, is_anonymous: users.is_anonymous } : null,
+    }));
+
+    return res.json({ messages: shaped, has_more: messages.length === limit });
   } catch (err) {
     return next(err);
   }

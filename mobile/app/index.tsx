@@ -9,6 +9,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  TextInput,
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
@@ -22,6 +23,7 @@ import * as api from '../lib/api';
 import type { Venue, PresenceResult } from '../lib/api';
 import { LiveBadge } from './components/LiveBadge';
 import { VenueIcon } from './components/VenueIcon';
+import { WelcomeCard } from './components/WelcomeCard';
 
 const TOKEN_KEY = '@loci_token';
 const USER_KEY = '@loci_user';
@@ -41,8 +43,19 @@ export default function HomeScreen() {
   // Animations
   const scanPulse = useRef(new Animated.Value(1)).current;
   const bannerSlide = useRef(new Animated.Value(-80)).current;
-  const countdownRef = useRef(5);
-  const [countdown, setCountdown] = useState(5);
+
+  // Welcome card state
+  const [welcomeVenue, setWelcomeVenue] = useState<{
+    venueId: string; venueName: string; venueCategory: string;
+    venueAddress?: string; occupancy: number; welcomeMessage?: string; roomId: string;
+  } | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<VenueWithDistance[]>([]);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pulsing scan animation
   useEffect(() => {
@@ -95,6 +108,10 @@ export default function HomeScreen() {
 
         api.setToken(token);
         setInitialized(true);
+        // Load recent searches (device-only, never sent to server)
+        AsyncStorage.getItem('@loci_recent_searches').then((raw) => {
+          if (raw) try { setRecentSearches(JSON.parse(raw)); } catch {}
+        });
       } catch {
         router.replace('/auth');
       }
@@ -120,7 +137,7 @@ export default function HomeScreen() {
 
       if (result.is_present && result.room_id && result.venue) {
         setAtVenue({ name: result.venue.name, roomId: result.room_id });
-        startCountdown(result.room_id);
+        handlePresenceConfirmed(result);
       } else {
         setAtVenue(null);
         loadNearbyVenues();
@@ -130,17 +147,54 @@ export default function HomeScreen() {
     }
   };
 
-  const startCountdown = (roomId: string) => {
-    countdownRef.current = 5;
-    setCountdown(5);
-    const interval = setInterval(() => {
-      countdownRef.current -= 1;
-      setCountdown(countdownRef.current);
-      if (countdownRef.current <= 0) {
-        clearInterval(interval);
-        router.push(`/room/${roomId}`);
-      }
-    }, 1000);
+  // Fetch full venue details and show WelcomeCard instead of auto-counting down
+  const handlePresenceConfirmed = async (result: PresenceResult) => {
+    if (!result.room_id || !result.venue) return;
+    try {
+      const detail = await api.venues.getById(result.venue.id);
+      setWelcomeVenue({
+        venueId: result.venue.id,
+        venueName: result.venue.name,
+        venueCategory: result.venue.category || 'venue',
+        venueAddress: detail.address,
+        occupancy: detail.occupancy,
+        welcomeMessage: detail.welcome_message,
+        roomId: result.room_id,
+      });
+    } catch {
+      // Fallback with what presence gave us
+      setWelcomeVenue({
+        venueId: result.venue.id,
+        venueName: result.venue.name,
+        venueCategory: result.venue.category || 'venue',
+        occupancy: 0,
+        roomId: result.room_id,
+      });
+    }
+  };
+
+  // Search helpers — recent searches stored device-only
+  const saveRecentSearch = async (q: string) => {
+    const updated = [q, ...recentSearches.filter((r) => r !== q)].slice(0, 5);
+    setRecentSearches(updated);
+    await AsyncStorage.setItem('@loci_recent_searches', JSON.stringify(updated));
+  };
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (text.length < 2) { setSearchResults([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.venues.search(
+          text,
+          location.latitude ?? undefined,
+          location.longitude ?? undefined
+        );
+        setSearchResults(res.venues as VenueWithDistance[]);
+        saveRecentSearch(text);
+      } catch { setSearchResults([]); }
+    }, 300);
   };
 
   const loadNearbyVenues = async () => {
@@ -232,8 +286,62 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Venue list */}
-      {venues.length > 0 ? (
+      {/* Search bar */}
+      <View style={styles.searchWrap}>
+        <View style={[styles.searchRow, searchFocused && styles.searchRowFocused]}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Search venues…"
+            placeholderTextColor="#444"
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); }}>
+              <Text style={styles.searchClear}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {searchQuery.length === 0 && recentSearches.length > 0 && (
+          <View style={styles.recentRow}>
+            {recentSearches.map((r) => (
+              <TouchableOpacity key={r} style={styles.recentChip} onPress={() => handleSearch(r)}>
+                <Text style={styles.recentChipText}>{r}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Venue list — search results or nearby */}
+      {searchQuery.length >= 2 ? (
+        searchResults.length > 0 ? (
+          <>
+            <Text style={styles.searchResultsLabel}>
+              {searchResults.length} venue{searchResults.length !== 1 ? 's' : ''} found
+            </Text>
+            <FlatList
+              data={searchResults}
+              keyExtractor={(v) => v.id}
+              renderItem={({ item }) => (
+                <VenueCard venue={item} onPress={() => joinVenueRoom(item)} />
+              )}
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={false}
+            />
+          </>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🔍</Text>
+            <Text style={styles.emptyTitle}>No venues found</Text>
+            <Text style={styles.emptySubtext}>No results for "{searchQuery}"</Text>
+          </View>
+        )
+      ) : venues.length > 0 ? (
         <FlatList
           data={venues}
           keyExtractor={(v) => v.id}
@@ -264,6 +372,22 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* Welcome Card — shown when presence confirmed at a venue */}
+      {welcomeVenue && (
+        <WelcomeCard
+          {...welcomeVenue}
+          onEnter={() => {
+            setWelcomeVenue(null);
+            router.push(`/room/${welcomeVenue.roomId}`);
+          }}
+          onDismiss={() => {
+            setWelcomeVenue(null);
+            setAtVenue(null);
+            loadNearbyVenues();
+          }}
+        />
       )}
     </View>
   );
@@ -533,6 +657,65 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     lineHeight: 20,
+  },
+
+  // Search
+  searchWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e1e2e',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#1e1e2e',
+    gap: 8,
+  },
+  searchRowFocused: {
+    borderColor: '#6C63FF',
+  },
+  searchIcon: { fontSize: 15 },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 14,
+    paddingVertical: 2,
+  },
+  searchClear: {
+    color: '#555',
+    fontSize: 14,
+    paddingHorizontal: 4,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  recentChip: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2a2a3e',
+  },
+  recentChipText: {
+    color: '#888',
+    fontSize: 12,
+  },
+  searchResultsLabel: {
+    color: '#555',
+    fontSize: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
 
   // Empty state

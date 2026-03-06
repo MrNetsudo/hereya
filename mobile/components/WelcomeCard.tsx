@@ -17,7 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { VenueIcon } from './VenueIcon';
-import * as api from '../../lib/api';
+import * as api from '../lib/api';
 
 export interface WelcomeCardProps {
   venueId: string;

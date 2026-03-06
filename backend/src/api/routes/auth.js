@@ -195,8 +195,48 @@ router.post('/upgrade', requireAuth, authLimiter, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+// In-memory OTP store: { email → { code, name, expiresAt } }
+// Codes expire after 10 minutes. Good enough at this scale.
+// ─────────────────────────────────────────────────────────
+const otpStore = new Map();
+
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // always 6 digits
+}
+
+function storeOtp(email, code, name) {
+  otpStore.set(email.toLowerCase(), {
+    code,
+    name,
+    expiresAt: Date.now() + 10 * 60 * 1000, // 10 min TTL
+  });
+}
+
+function verifyStoredOtp(email, code) {
+  const entry = otpStore.get(email.toLowerCase());
+  if (!entry) return { valid: false, reason: 'No code found for this email' };
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(email.toLowerCase());
+    return { valid: false, reason: 'Code expired. Please request a new one.' };
+  }
+  if (entry.code !== String(code).trim()) {
+    return { valid: false, reason: 'Invalid code' };
+  }
+  otpStore.delete(email.toLowerCase()); // one-time use
+  return { valid: true, name: entry.name };
+}
+
+// Purge expired entries every 15 min to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of otpStore.entries()) {
+    if (now > v.expiresAt) otpStore.delete(k);
+  }
+}, 15 * 60 * 1000);
+
+// ─────────────────────────────────────────────────────────
 // POST /auth/email-signup
-// Uses Supabase's built-in OTP generation — no otp_codes table needed!
 // ─────────────────────────────────────────────────────────
 router.post('/email-signup', authLimiter, async (req, res, next) => {
   try {
@@ -214,47 +254,31 @@ router.post('/email-signup', authLimiter, async (req, res, next) => {
     const cleanEmail = String(email).toLowerCase().trim();
     const cleanName = String(name).trim();
 
-    // Generate OTP via Supabase Admin (creates auth user if not exists)
-    // The 'email_otp' field is a 6-digit code Supabase stores internally
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: cleanEmail,
-      options: { shouldCreateUser: true },
-    });
+    // Generate our own 6-digit code — store in memory, send via Gmail
+    const code = generateOtp();
+    storeOtp(cleanEmail, code, cleanName);
 
-    if (linkError) {
-      logger.error('Supabase generateLink error', { linkError });
-      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to generate verification code. Please try again.' });
-    }
-
-    const code = linkData.properties.email_otp;
-    if (!code || code.length < 6) {
-      logger.error('No email_otp in generateLink response', { properties: linkData.properties });
-      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to generate verification code.' });
-    }
-
-    // Send email via Resend
-    const emailRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.resend.apiKey}`,
-        'Content-Type': 'application/json',
+    // Send via Gmail OAuth2
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: process.env.GMAIL_USER || 'thesavageatit@gmail.com',
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
       },
-      body: JSON.stringify({
-        from: config.resend.from,
-        to: cleanEmail,
-        subject: 'Your Loci verification code',
-        html: buildOtpEmail(cleanName, code),
-      }),
     });
 
-    if (!emailRes.ok) {
-      const errBody = await emailRes.json().catch(() => ({}));
-      logger.error('Resend error', { status: emailRes.status, errBody });
-      return res.status(500).json({ error: 'EMAIL_ERROR', message: 'Failed to send verification email. Please try again.' });
-    }
+    await transporter.sendMail({
+      from: `"Loci App" <${process.env.GMAIL_USER || 'thesavageatit@gmail.com'}>`,
+      to: cleanEmail,
+      subject: 'Your Loci verification code',
+      html: buildOtpEmail(cleanName, code),
+    });
 
-    logger.info('OTP sent via Supabase+Resend', { email: cleanEmail });
+    logger.info('OTP sent via Gmail', { email: cleanEmail });
     return res.json({ ok: true, message: 'Verification code sent to your email' });
   } catch (err) {
     return next(err);
@@ -277,52 +301,61 @@ router.post('/verify-otp', authLimiter, async (req, res, next) => {
     const cleanCode = String(code).trim();
     const cleanName = String(name).trim();
 
-    // Verify OTP against Supabase Auth (stored internally by generateLink)
-    // The email_otp from generateLink can be verified with type 'email' or 'magiclink'
-    const verifyRes = await fetch(`${config.supabase.url}/auth/v1/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': config.supabase.anonKey,
-      },
-      body: JSON.stringify({
-        type: 'email',
-        token: cleanCode,
-        email: cleanEmail,
-        gotrue_meta_security: {},
-      }),
+    // 1. Verify OTP against our in-memory store
+    const otpResult = verifyStoredOtp(cleanEmail, cleanCode);
+    if (!otpResult.valid) {
+      logger.warn('OTP verify failed', { email: cleanEmail, reason: otpResult.reason });
+      return res.status(400).json({ error: 'INVALID_CODE', message: otpResult.reason });
+    }
+
+    // 2. OTP valid — ensure Supabase auth user exists (create if first time)
+    let authUserId;
+    try {
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const existing = users?.find(u => u.email?.toLowerCase() === cleanEmail);
+      if (existing) {
+        authUserId = existing.id;
+      } else {
+        const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          email: cleanEmail,
+          email_confirm: true,
+          user_metadata: { display_name: cleanName },
+        });
+        if (createErr) throw createErr;
+        authUserId = created.user.id;
+      }
+    } catch (err) {
+      logger.error('User get/create error', { err: err.message });
+      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to create account.' });
+    }
+
+    // 3. Generate magic link → extract token_hash → exchange for real session
+    const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: cleanEmail,
     });
 
-    // Try magiclink type if email type fails
-    let session = await verifyRes.json();
-
-    if (!session.access_token) {
-      // Try with 'magiclink' type
-      const verifyRes2 = await fetch(`${config.supabase.url}/auth/v1/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': config.supabase.anonKey,
-        },
-        body: JSON.stringify({
-          type: 'magiclink',
-          token: cleanCode,
-          email: cleanEmail,
-        }),
-      });
-      session = await verifyRes2.json();
+    if (linkErr || !linkData?.properties?.action_link) {
+      logger.error('generateLink error', { linkErr });
+      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to create session.' });
     }
 
-    if (!session.access_token) {
-      const errMsg = session.error_description || session.msg || 'Invalid or expired verification code.';
-      logger.warn('OTP verify failed', { email: cleanEmail, response: session });
-      return res.status(400).json({ error: 'INVALID_CODE', message: errMsg });
+    const actionLink = linkData.properties.action_link;
+    const tokenHash = new URL(actionLink).searchParams.get('token');
+
+    // 4. Exchange token_hash for a live session using the JS SDK
+    const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: 'magiclink',
+    });
+
+    if (verifyErr || !verifyData?.session?.access_token) {
+      logger.error('Session exchange failed', { verifyErr, session: verifyData?.session });
+      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to create session.' });
     }
 
-    const authUserId = session.user?.id;
-    const authUserEmail = session.user?.email || cleanEmail;
-    const emailVerified = !!(session.user?.email_confirmed_at);
-    const accessToken = session.access_token;
+    const authUserEmail = verifyData.user?.email || cleanEmail;
+    const accessToken = verifyData.session.access_token;
 
     if (!authUserId) {
       logger.error('No user ID in verify response', { session });

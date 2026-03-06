@@ -43,7 +43,7 @@ function buildOtpEmail(name, code) {
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#111111;border-radius:16px;border:1px solid #1e1e2e;overflow:hidden;">
           <tr>
             <td align="center" style="padding:32px 40px 24px;border-bottom:1px solid #1e1e2e;">
-              <p style="margin:0;font-size:28px;font-weight:900;letter-spacing:6px;color:#6C63FF;">LOCI</p>
+              <p style="margin:0;font-size:28px;font-weight:900;letter-spacing:6px;color:#6C63FF;">HEREYA</p>
               <p style="margin:8px 0 0;font-size:13px;color:#666;letter-spacing:1px;">Walk in. Connect.</p>
             </td>
           </tr>
@@ -362,7 +362,7 @@ router.post('/verify-otp', authLimiter, async (req, res, next) => {
       return res.status(500).json({ error: 'AUTH_ERROR', message: 'Authentication failed.' });
     }
 
-    // Upsert LOCI user (display_name only — email stored in Supabase Auth)
+    // Upsert Hereya user (display_name only — email stored in Supabase Auth)
     const { data: lociUser, error: upsertError } = await supabaseAdmin
       .from('users')
       .upsert({

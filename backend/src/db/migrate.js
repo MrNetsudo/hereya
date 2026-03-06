@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * LOCI — Startup Database Migrator (No-op safe)
+ * Hereya — Startup Database Migrator (No-op safe)
  *
  * Note: The primary OTP mechanism uses Supabase's internal OTP storage
  * (via generateLink + /auth/v1/verify), so no otp_codes table is required.

@@ -1,12 +1,12 @@
 /**
- * LOCI API client
+ * Hereya API client
  * All calls go through https://loci.netsudo.com/api/v1
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://loci.netsudo.com/api/v1';
-const TOKEN_KEY = '@loci_token';
+const TOKEN_KEY = '@hereya_token';
 
 let _token: string | null = null;
 

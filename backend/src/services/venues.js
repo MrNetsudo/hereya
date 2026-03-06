@@ -24,7 +24,7 @@ const OSM_LEISURE_TAGS = ['stadium', 'sports_centre', 'arena', 'pitch'];
  * Sources venue data from OpenStreetMap via Overpass API.
  * Results cached in Postgres for 24 hours.
  *
- * When Foursquare enterprise credentials are available, set LOCI_FOURSQUARE_API_KEY
+ * When Foursquare enterprise credentials are available, set HEREYA_FOURSQUARE_API_KEY
  * and this service will prefer FSQ data automatically (future upgrade path).
  */
 class VenueService {

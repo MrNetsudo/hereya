@@ -53,7 +53,7 @@ app.use(rateLimit({
 // ── Root + Health check ───────────────────────────────────
 app.get('/', (_req, res) => {
   res.json({
-    app: 'LOCI',
+    app: 'Hereya',
     version: process.env.LOCI_API_VERSION || 'v1',
     status: 'online',
     docs: 'https://github.com/MrNetsudo/loci',
@@ -70,7 +70,7 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', app: 'LOCI', version: process.env.LOCI_API_VERSION || 'v1' });
+  res.json({ status: 'ok', app: 'Hereya', version: process.env.LOCI_API_VERSION || 'v1' });
 });
 
 // ── API Routes ────────────────────────────────────────────

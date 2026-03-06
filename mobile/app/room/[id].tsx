@@ -1,5 +1,5 @@
 /**
- * LOCI — Room Screen (Production UI)
+ * Hereya — Room Screen (Production UI)
  * Real-time chat room for a venue.
  */
 

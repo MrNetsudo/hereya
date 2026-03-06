@@ -1,14 +1,14 @@
-# LOCI — [PLACEHOLDER NAME]
+# Hereya — You have to be here.
 > *Venue-based real-time social chat. You have to be there.*
 
-**⚠️ LOCI is a working placeholder name. Replace globally when final name is chosen.**
-Find & Replace: `LOCI` → `[FINAL NAME]` across all files, env keys, and configs.
+**⚠️ Hereya is a working placeholder name. **
+
 
 ---
 
-## What Is LOCI?
+## What Is Hereya?
 
-LOCI is a venue-anchored, presence-required social chat platform. Users physically at a venue are automatically placed into that venue's live chat room. Rooms exist only while people are on-site.
+Hereya is a venue-anchored, presence-required social chat platform. Users physically at a venue are automatically placed into that venue's live chat room. Rooms exist only while people are on-site.
 
 **Core principle:** You can't fake presence. The room opens when you arrive.
 

@@ -1,5 +1,5 @@
 /**
- * LOCI — Venue Profile Screen
+ * Hereya — Venue Profile Screen
  * Yelp-style venue info: popular times, vibe tags, stats, AI vibe, live status.
  * Fully anonymous — headcounts only, no user attribution.
  */

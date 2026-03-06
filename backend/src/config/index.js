@@ -2,33 +2,33 @@
 
 module.exports = {
   app: {
-    name: process.env.LOCI_APP_NAME || 'LOCI',
+    name: process.env.HEREYA_APP_NAME || 'Hereya',
     env: process.env.NODE_ENV || 'development',
     port: Number(process.env.PORT) || 3000,
-    version: process.env.LOCI_API_VERSION || 'v1',
+    version: process.env.HEREYA_API_VERSION || 'v1',
   },
   supabase: {
-    url: process.env.LOCI_SUPABASE_URL,
-    anonKey: process.env.LOCI_SUPABASE_ANON_KEY,
-    serviceKey: process.env.LOCI_SUPABASE_SERVICE_KEY,
+    url: process.env.HEREYA_SUPABASE_URL,
+    anonKey: process.env.HEREYA_SUPABASE_ANON_KEY,
+    serviceKey: process.env.HEREYA_SUPABASE_SERVICE_KEY,
   },
   database: {
-    url: process.env.LOCI_DATABASE_URL,
+    url: process.env.HEREYA_DATABASE_URL,
   },
   google: {
     mapsApiKey: process.env.LOCI_GOOGLE_MAPS_API_KEY,
   },
   foursquare: {
-    apiKey: process.env.LOCI_FOURSQUARE_API_KEY,
-    clientId: process.env.LOCI_FOURSQUARE_CLIENT_ID,
-    clientSecret: process.env.LOCI_FOURSQUARE_CLIENT_SECRET,
+    apiKey: process.env.HEREYA_FOURSQUARE_API_KEY,
+    clientId: process.env.HEREYA_FOURSQUARE_CLIENT_ID,
+    clientSecret: process.env.HEREYA_FOURSQUARE_CLIENT_SECRET,
   },
   openai: {
-    apiKey: process.env.LOCI_OPENAI_API_KEY,
-    moderationThreshold: Number(process.env.LOCI_MODERATION_THRESHOLD) || 0.85,
+    apiKey: process.env.HEREYA_OPENAI_API_KEY,
+    moderationThreshold: Number(process.env.HEREYA_MODERATION_THRESHOLD) || 0.85,
   },
   rooms: {
-    coolingMinutes: Number(process.env.LOCI_ROOM_COOLING_MINUTES) || 15,
+    coolingMinutes: Number(process.env.HEREYA_ROOM_COOLING_MINUTES) || 15,
     messageRetentionDays: Number(process.env.LOCI_MESSAGE_RETENTION_DAYS) || 30,
     presenceTtlHours: Number(process.env.LOCI_PRESENCE_TTL_HOURS) || 1,
   },
@@ -37,8 +37,8 @@ module.exports = {
     stadiumRadiusM: Number(process.env.LOCI_STADIUM_GEOFENCE_RADIUS_M) || 300,
   },
   rateLimits: {
-    windowMs: Number(process.env.LOCI_RATE_LIMIT_WINDOW_MS) || 60_000,
-    global: Number(process.env.LOCI_RATE_LIMIT_MAX) || 120,
+    windowMs: Number(process.env.HEREYA_RATE_LIMIT_WINDOW_MS) || 60_000,
+    global: Number(process.env.HEREYA_RATE_LIMIT_MAX) || 120,
     auth: Number(process.env.LOCI_AUTH_RATE_LIMIT_MAX) || 10,
     presence: Number(process.env.LOCI_PRESENCE_RATE_LIMIT_MAX) || 1,
     messages: Number(process.env.LOCI_MESSAGE_RATE_LIMIT_MAX) || 30,

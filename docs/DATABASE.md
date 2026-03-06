@@ -1,4 +1,4 @@
-# LOCI — Database Schema
+# Hereya — Database Schema
 
 ## Overview
 

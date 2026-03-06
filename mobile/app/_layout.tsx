@@ -5,7 +5,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 function LociWordmark() {
   return (
     <View style={styles.wordmarkContainer}>
-      <Text style={styles.wordmark}>LOCI</Text>
+      <Text style={styles.wordmark}>HEREYA</Text>
     </View>
   );
 }

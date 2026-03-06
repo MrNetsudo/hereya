@@ -13,7 +13,7 @@ const ENV = process.env.NODE_ENV || 'development';
   await runMigrations();
 
   app.listen(PORT, () => {
-    logger.info(`LOCI API server running`, {
+    logger.info(`Hereya API server running`, {
       port: PORT,
       env: ENV,
       version: process.env.LOCI_API_VERSION || 'v1',

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "LOCI",
-    "slug": "loci",
+    "name": "Hereya",
+    "slug": "hereya",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,13 +12,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.netsudo.loci",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "LOCI needs your location to find venues near you and put you in the right chat room.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "LOCI uses your location to keep you in the venue chat room while you're there."
+        "NSLocationWhenInUseUsageDescription": "Hereya needs your location to find venues near you and put you in the right chat room.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Hereya uses your location to keep you in the venue chat room while you're there."
       }
     },
     "android": {
@@ -37,7 +39,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "LOCI uses your location to find your venue."
+          "locationAlwaysAndWhenInUsePermission": "Hereya uses your location to find your venue."
         }
       ]
     ],

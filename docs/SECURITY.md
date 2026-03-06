@@ -1,4 +1,4 @@
-# LOCI — Security Model
+# Hereya — Security Model
 
 ## Principles
 

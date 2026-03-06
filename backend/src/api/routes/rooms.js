@@ -78,7 +78,7 @@ router.post('/:room_id/join', requireAuth, async (req, res, next) => {
       room: { id: room.id, status: 'active' },
       member: { id: member.id, display_name: displayName },
       realtime_channel: `room:${room.id}`,
-      supabase_url: process.env.LOCI_SUPABASE_URL,
+      supabase_url: process.env.HEREYA_SUPABASE_URL,
     });
   } catch (err) {
     return next(err);

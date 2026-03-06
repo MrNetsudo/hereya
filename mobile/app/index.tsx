@@ -1,5 +1,5 @@
 /**
- * LOCI — Home Screen (Production UI)
+ * Hereya — Home Screen (Production UI)
  * Detects location → checks presence → shows nearby venues or drops you into a room.
  */
 
@@ -25,8 +25,8 @@ import { LiveBadge } from './components/LiveBadge';
 import { VenueIcon } from './components/VenueIcon';
 import { WelcomeCard } from './components/WelcomeCard';
 
-const TOKEN_KEY = '@loci_token';
-const USER_KEY = '@loci_user';
+const TOKEN_KEY = '@hereya_token';
+const USER_KEY = '@hereya_user';
 
 // Extend Venue type to include optional distance from API
 type VenueWithDistance = Venue & { distance_meters?: number };
@@ -109,7 +109,7 @@ export default function HomeScreen() {
         api.setToken(token);
         setInitialized(true);
         // Load recent searches (device-only, never sent to server)
-        AsyncStorage.getItem('@loci_recent_searches').then((raw) => {
+        AsyncStorage.getItem('@hereya_recent_searches').then((raw) => {
           if (raw) try { setRecentSearches(JSON.parse(raw)); } catch {}
         });
       } catch {
@@ -177,7 +177,7 @@ export default function HomeScreen() {
   const saveRecentSearch = async (q: string) => {
     const updated = [q, ...recentSearches.filter((r) => r !== q)].slice(0, 5);
     setRecentSearches(updated);
-    await AsyncStorage.setItem('@loci_recent_searches', JSON.stringify(updated));
+    await AsyncStorage.setItem('@hereya_recent_searches', JSON.stringify(updated));
   };
 
   const handleSearch = (text: string) => {

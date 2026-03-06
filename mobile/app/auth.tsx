@@ -1,5 +1,5 @@
 /**
- * LOCI — Auth Screen
+ * Hereya — Auth Screen
  * Email + name entry → OTP verification → home
  */
 
@@ -21,8 +21,8 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as api from '../lib/api';
 
-const TOKEN_KEY = '@loci_token';
-const USER_KEY = '@loci_user';
+const TOKEN_KEY = '@hereya_token';
+const USER_KEY = '@hereya_user';
 
 type AuthStep = 'entry' | 'otp';
 
@@ -201,7 +201,7 @@ export default function AuthScreen() {
       >
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Text style={styles.wordmark}>LOCI</Text>
+          <Text style={styles.wordmark}>HEREYA</Text>
           <Text style={styles.tagline}>Walk in. Connect.</Text>
         </View>
 

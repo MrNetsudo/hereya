@@ -1,4 +1,4 @@
-# LOCI — API Reference
+# Hereya — API Reference
 
 **Base URL:** `https://api.loci.app/v1`
 **Auth:** Bearer token (Supabase JWT) in `Authorization` header

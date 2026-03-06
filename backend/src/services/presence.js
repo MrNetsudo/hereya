@@ -85,7 +85,7 @@ class PresenceService {
     // Validate signature and expiry, then return venue
     try {
       // TODO: implement JWT verification for QR tokens
-      // const { venueId, expiresAt } = verifyJwt(token, process.env.LOCI_JWT_SECRET);
+      // const { venueId, expiresAt } = verifyJwt(token, process.env.HEREYA_JWT_SECRET);
       // For now, placeholder
       throw new Error('QR verification not yet implemented');
     } catch (err) {

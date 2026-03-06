@@ -29,7 +29,7 @@ const requireAuth = async (req, res, next) => {
       .single();
 
     if (userError || !lociUser) {
-      logger.warn('Auth user has no LOCI user record', { auth_id: user.id });
+      logger.warn('Auth user has no Hereya user record', { auth_id: user.id });
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record not found' });
     }
 

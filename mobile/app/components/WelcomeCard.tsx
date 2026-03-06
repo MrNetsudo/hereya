@@ -1,5 +1,5 @@
 /**
- * LOCI — WelcomeCard
+ * Hereya — WelcomeCard
  * Slides up when presence is confirmed at a venue.
  * Shows venue info, live headcount (anonymous), and AI vibe summary.
  * Auto-enters after 8 seconds.

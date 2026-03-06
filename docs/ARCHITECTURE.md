@@ -1,8 +1,8 @@
-# LOCI — Architecture Overview
+# Hereya — Architecture Overview
 
 ## System Design
 
-LOCI is built around three core problems:
+Hereya is built around three core problems:
 1. **Presence verification** — is the user actually at this venue?
 2. **Room lifecycle** — when does a room open, stay alive, and close?
 3. **Real-time messaging** — chat that works at venue scale
@@ -19,7 +19,7 @@ LOCI is built around three core problems:
              │ REST API                       │ WebSocket
              ▼                               ▼
 ┌─────────────────────┐         ┌────────────────────────┐
-│    LOCI API SERVER  │         │  SUPABASE REALTIME     │
+│    Hereya API SERVER  │         │  SUPABASE REALTIME     │
 │    (Node/Express)   │         │  (WebSocket Channels)  │
 └──────┬──────────────┘         └────────────┬───────────┘
        │                                     │
@@ -125,7 +125,7 @@ Rate limit check (max 30 msg/min per user)
     ↓
 OpenAI Moderation API (hate, harassment, sexual, violence, self-harm)
     ↓
-Custom LOCI rules (venue-specific filters, keyword blocks)
+Custom Hereya rules (venue-specific filters, keyword blocks)
     ↓
 Pass → broadcast to room
 Fail → reject with error code, log for review
@@ -179,7 +179,7 @@ venue_partners  — paid venue partner accounts
 
 ## Real-Time Strategy
 
-LOCI uses **Supabase Realtime** for WebSocket connections.
+Hereya uses **Supabase Realtime** for WebSocket connections.
 
 - One channel per room: `room:{room_id}`
 - Presence tracking via Supabase Presence (who's online in channel)

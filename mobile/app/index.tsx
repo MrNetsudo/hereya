@@ -266,28 +266,7 @@ export default function HomeScreen() {
         </Animated.View>
       )}
 
-      {/* Stats strip */}
-      <View style={s.statsStrip}>
-        <View style={s.statItem}>
-          <Animated.View style={[s.statDot, { opacity: scanPulse }]} />
-          <Text style={s.statLabel}>{venues.length} nearby</Text>
-        </View>
-        {liveCount > 0 && (
-          <>
-            <View style={s.statDivider} />
-            <View style={s.statItem}>
-              <View style={[s.statDot, { backgroundColor: '#22C55E' }]} />
-              <Text style={[s.statLabel, { color: '#22C55E' }]}>{liveCount} live now</Text>
-            </View>
-          </>
-        )}
-        {location.accuracy && (
-          <>
-            <View style={s.statDivider} />
-            <Text style={s.statLabel}>±{Math.round(location.accuracy)}m</Text>
-          </>
-        )}
-      </View>
+
 
       {/* Search */}
       <View style={s.searchWrap}>

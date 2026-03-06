@@ -83,7 +83,6 @@ router.post('/anonymous', authLimiter, async (req, res, next) => {
     const { data, error } = await supabase.auth.signInAnonymously();
     if (error) return next(error);
 
-    // Create LOCI user record
     const displayName = `User${Math.floor(Math.random() * 9000) + 1000}`;
     const { data: lociUser } = await supabaseAdmin
       .from('users')
@@ -195,17 +194,18 @@ router.post('/upgrade', requireAuth, authLimiter, async (req, res, next) => {
   }
 });
 
-// POST /auth/email-signup — send OTP to email
+// ─────────────────────────────────────────────────────────
+// POST /auth/email-signup
+// Uses Supabase's built-in OTP generation — no otp_codes table needed!
+// ─────────────────────────────────────────────────────────
 router.post('/email-signup', authLimiter, async (req, res, next) => {
   try {
     const { name, email } = req.body;
 
-    // Validate name
+    // Validate
     if (!name || String(name).trim().length < 2) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Name must be at least 2 characters' });
     }
-
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !emailRegex.test(String(email).trim())) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Please enter a valid email address' });
@@ -214,28 +214,23 @@ router.post('/email-signup', authLimiter, async (req, res, next) => {
     const cleanEmail = String(email).toLowerCase().trim();
     const cleanName = String(name).trim();
 
-    // Generate 6-digit OTP
-    const code = String(Math.floor(Math.random() * 900000) + 100000);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    // Generate OTP via Supabase Admin (creates auth user if not exists)
+    // The 'email_otp' field is a 6-digit code Supabase stores internally
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: cleanEmail,
+      options: { shouldCreateUser: true },
+    });
 
-    // Delete old OTPs for this email
-    await supabaseAdmin
-      .from('otp_codes')
-      .delete()
-      .eq('email', cleanEmail);
+    if (linkError) {
+      logger.error('Supabase generateLink error', { linkError });
+      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to generate verification code. Please try again.' });
+    }
 
-    // Insert new OTP
-    const { error: insertError } = await supabaseAdmin
-      .from('otp_codes')
-      .insert({
-        email: cleanEmail,
-        code,
-        expires_at: expiresAt.toISOString(),
-      });
-
-    if (insertError) {
-      logger.error('OTP insert error', { insertError });
-      return res.status(500).json({ error: 'DB_ERROR', message: 'Failed to generate verification code' });
+    const code = linkData.properties.email_otp;
+    if (!code || code.length < 6) {
+      logger.error('No email_otp in generateLink response', { properties: linkData.properties });
+      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to generate verification code.' });
     }
 
     // Send email via Resend
@@ -255,18 +250,21 @@ router.post('/email-signup', authLimiter, async (req, res, next) => {
 
     if (!emailRes.ok) {
       const errBody = await emailRes.json().catch(() => ({}));
-      logger.error('Resend email error', { status: emailRes.status, errBody });
+      logger.error('Resend error', { status: emailRes.status, errBody });
       return res.status(500).json({ error: 'EMAIL_ERROR', message: 'Failed to send verification email. Please try again.' });
     }
 
-    logger.info('OTP sent', { email: cleanEmail });
+    logger.info('OTP sent via Supabase+Resend', { email: cleanEmail });
     return res.json({ ok: true, message: 'Verification code sent to your email' });
   } catch (err) {
     return next(err);
   }
 });
 
-// POST /auth/verify-otp — verify OTP and return JWT
+// ─────────────────────────────────────────────────────────
+// POST /auth/verify-otp
+// Verifies OTP against Supabase Auth internally — no otp_codes table needed!
+// ─────────────────────────────────────────────────────────
 router.post('/verify-otp', authLimiter, async (req, res, next) => {
   try {
     const { name, email, code } = req.body;
@@ -279,84 +277,64 @@ router.post('/verify-otp', authLimiter, async (req, res, next) => {
     const cleanCode = String(code).trim();
     const cleanName = String(name).trim();
 
-    // Look up the OTP
-    const { data: otpRecord, error: otpError } = await supabaseAdmin
-      .from('otp_codes')
-      .select('*')
-      .eq('email', cleanEmail)
-      .eq('used', false)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (otpError || !otpRecord) {
-      return res.status(400).json({ error: 'INVALID_CODE', message: 'No verification code found. Please request a new code.' });
-    }
-
-    // Check expiry
-    if (new Date(otpRecord.expires_at) < new Date()) {
-      return res.status(400).json({ error: 'EXPIRED_CODE', message: 'Verification code has expired. Please request a new one.' });
-    }
-
-    // Check code match
-    if (otpRecord.code !== cleanCode) {
-      return res.status(400).json({ error: 'INVALID_CODE', message: 'Incorrect verification code. Please try again.' });
-    }
-
-    // Mark OTP as used
-    await supabaseAdmin
-      .from('otp_codes')
-      .update({ used: true })
-      .eq('id', otpRecord.id);
-
-    // Generate a Supabase magic link to get a real session token
-    // (creates user in Supabase auth if they don't exist)
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: cleanEmail,
-      options: { shouldCreateUser: true },
-    });
-
-    if (linkError) {
-      logger.error('Supabase generateLink error', { linkError });
-      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to create authentication session' });
-    }
-
-    const { hashed_token } = linkData.properties;
-    const authUser = linkData.user;
-
-    // Exchange hashed_token for a session via Supabase Auth REST API
+    // Verify OTP against Supabase Auth (stored internally by generateLink)
+    // The email_otp from generateLink can be verified with type 'email' or 'magiclink'
     const verifyRes = await fetch(`${config.supabase.url}/auth/v1/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': config.supabase.anonKey,
       },
-      body: JSON.stringify({ token: hashed_token, type: 'magiclink' }),
+      body: JSON.stringify({
+        type: 'email',
+        token: cleanCode,
+        email: cleanEmail,
+        gotrue_meta_security: {},
+      }),
     });
 
-    if (!verifyRes.ok) {
-      const verifyErr = await verifyRes.json().catch(() => ({}));
-      logger.error('Supabase verify error', { status: verifyRes.status, verifyErr });
-      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Failed to create session. Please try again.' });
+    // Try magiclink type if email type fails
+    let session = await verifyRes.json();
+
+    if (!session.access_token) {
+      // Try with 'magiclink' type
+      const verifyRes2 = await fetch(`${config.supabase.url}/auth/v1/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': config.supabase.anonKey,
+        },
+        body: JSON.stringify({
+          type: 'magiclink',
+          token: cleanCode,
+          email: cleanEmail,
+        }),
+      });
+      session = await verifyRes2.json();
     }
 
-    const session = await verifyRes.json();
+    if (!session.access_token) {
+      const errMsg = session.error_description || session.msg || 'Invalid or expired verification code.';
+      logger.warn('OTP verify failed', { email: cleanEmail, response: session });
+      return res.status(400).json({ error: 'INVALID_CODE', message: errMsg });
+    }
+
+    const authUserId = session.user?.id;
+    const authUserEmail = session.user?.email || cleanEmail;
+    const emailVerified = !!(session.user?.email_confirmed_at);
     const accessToken = session.access_token;
 
-    if (!accessToken) {
-      logger.error('No access token in Supabase verify response', { session });
-      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Authentication failed. Please try again.' });
+    if (!authUserId) {
+      logger.error('No user ID in verify response', { session });
+      return res.status(500).json({ error: 'AUTH_ERROR', message: 'Authentication failed.' });
     }
 
-    // Upsert LOCI user record
+    // Upsert LOCI user (display_name only — email stored in Supabase Auth)
     const { data: lociUser, error: upsertError } = await supabaseAdmin
       .from('users')
       .upsert({
-        auth_id: authUser.id,
+        auth_id: authUserId,
         display_name: cleanName,
-        email: cleanEmail,
-        email_verified: true,
         is_anonymous: false,
       }, { onConflict: 'auth_id' })
       .select()
@@ -367,15 +345,15 @@ router.post('/verify-otp', authLimiter, async (req, res, next) => {
       return res.status(500).json({ error: 'DB_ERROR', message: 'Failed to save user profile' });
     }
 
-    logger.info('User verified via OTP', { userId: lociUser.id, email: cleanEmail });
+    logger.info('User verified via email OTP', { userId: lociUser.id, email: cleanEmail });
 
     return res.json({
       token: accessToken,
       user: {
         id: lociUser.id,
         display_name: lociUser.display_name,
-        email: lociUser.email,
-        email_verified: lociUser.email_verified,
+        email: authUserEmail,
+        email_verified: true, // Supabase confirmed the OTP = email is verified
       },
     });
   } catch (err) {

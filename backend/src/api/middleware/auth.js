@@ -29,7 +29,7 @@ const requireAuth = async (req, res, next) => {
       .single();
 
     if (userError || !lociUser) {
-      logger.warn('Auth user has no Hereya user record', { auth_id: user.id });
+      logger.warn('Auth user has no LOCI user record', { auth_id: user.id });
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record not found' });
     }
 
@@ -56,7 +56,29 @@ const optionalAuth = async (req, res, next) => {
     req.user = null;
     return next();
   }
-  return requireAuth(req, res, next);
+
+  // Try to resolve the user — but never block the request if it fails.
+  try {
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (!error && user) {
+      const { data: lociUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_id', user.id)
+        .single();
+
+      req.authUser = user;
+      req.user = lociUser || null;
+    } else {
+      req.user = null;
+    }
+  } catch (_) {
+    req.user = null;
+  }
+
+  return next();
 };
 
 module.exports = { requireAuth, optionalAuth };

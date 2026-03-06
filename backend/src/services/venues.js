@@ -56,27 +56,56 @@ class VenueService {
    * Get a single venue by internal ID.
    */
   async getVenueById(venueId) {
+    if (!venueId) return null;
+    // Try UUID first
     const { data } = await supabaseAdmin
       .from('venues')
       .select('*')
       .eq('id', venueId)
       .single();
-    return data;
+    if (data) return data;
+    // Fallback: try osm_id (for venues not yet upserted with DB UUID)
+    const { data: byOsm } = await supabaseAdmin
+      .from('venues')
+      .select('*')
+      .eq('osm_id', String(venueId))
+      .single();
+    return byOsm || null;
   }
 
   // ── Private helpers ──────────────────────────────────────
 
   async _getCachedNearby(lat, lng, radiusM) {
-    const { data } = await supabaseAdmin.rpc('get_nearby_venues', {
-      p_lat: lat,
-      p_lng: lng,
-      p_radius_m: radiusM,
-    });
+    // Simple bounding box query — works without PostGIS
+    // 1 degree lat ≈ 111km, 1 degree lng ≈ 111km * cos(lat)
+    const latDelta = radiusM / 111000;
+    const lngDelta = radiusM / (111000 * Math.cos((lat * Math.PI) / 180));
+
+    const { data } = await supabaseAdmin
+      .from('venues')
+      .select('*')
+      .eq('is_active', true)
+      .gte('latitude', lat - latDelta)
+      .lte('latitude', lat + latDelta)
+      .gte('longitude', lng - lngDelta)
+      .lte('longitude', lng + lngDelta)
+      .limit(30);
 
     if (!data?.length) return [];
 
+    // Sort by actual distance
+    const sorted = data
+      .map((v) => {
+        const dLat = v.latitude - lat;
+        const dLng = v.longitude - lng;
+        const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
+        return { ...v, _dist: dist };
+      })
+      .filter((v) => v._dist <= radiusM)
+      .sort((a, b) => a._dist - b._dist);
+
     const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000).toISOString();
-    return data.filter((v) => !v.osm_synced_at || v.osm_synced_at > cutoff);
+    return sorted.filter((v) => !v.osm_synced_at || v.osm_synced_at > cutoff);
   }
 
   async _fetchFromOSM({ latitude, longitude, radiusM }) {

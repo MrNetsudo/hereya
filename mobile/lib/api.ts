@@ -77,6 +77,17 @@ export const venues = {
     request<{ venues: Venue[] }>('GET', `/venues/nearby?lat=${lat}&lng=${lng}&radius=${radius}`),
   get: (id: string) =>
     request<Venue>('GET', `/venues/${id}`),
+  search: (q: string, lat?: number, lng?: number) =>
+    request<{ venues: Venue[]; query: string; total: number }>(
+      'GET',
+      `/venues/search?q=${encodeURIComponent(q)}${lat != null ? `&lat=${lat}&lng=${lng}` : ''}`
+    ),
+  getById: (id: string) =>
+    request<{ id: string; name: string; address: string; category: string; is_partner: boolean; welcome_message?: string; room_status: string; occupancy: number }>(
+      'GET', `/venues/${id}`
+    ),
+  vibe: (id: string) =>
+    request<{ vibe: string; cached: boolean }>('GET', `/venues/${id}/vibe`),
 };
 
 // ── Rooms ────────────────────────────────────────────────

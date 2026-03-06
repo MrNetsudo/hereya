@@ -20,8 +20,8 @@ import { useLocalSearchParams, useNavigation, Stack, router } from 'expo-router'
 import * as api from '../../lib/api';
 import { subscribeToRoom } from '../../lib/supabase';
 import type { Message, Room } from '../../lib/api';
-import { Avatar } from '../components/Avatar';
-import { StatusPill } from '../components/StatusPill';
+import { Avatar } from '../../components/Avatar';
+import { StatusPill } from '../../components/StatusPill';
 
 const MAX_CHARS = 500;
 const WARN_AT = 400;

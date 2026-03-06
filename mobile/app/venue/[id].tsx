@@ -20,8 +20,8 @@ import {
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import * as api from '../../lib/api';
 import type { VenueProfile } from '../../lib/api';
-import { VenueIcon } from '../components/VenueIcon';
-import { LiveBadge } from '../components/LiveBadge';
+import { VenueIcon } from '../../components/VenueIcon';
+import { LiveBadge } from '../../components/LiveBadge';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 

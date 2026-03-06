@@ -23,8 +23,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocation } from '../lib/useLocation';
 import * as api from '../lib/api';
 import type { Venue, PresenceResult } from '../lib/api';
-import { VenueIcon } from './components/VenueIcon';
-import { WelcomeCard } from './components/WelcomeCard';
+import { VenueIcon } from '../components/VenueIcon';
+import { WelcomeCard } from '../components/WelcomeCard';
 
 const TOKEN_KEY = '@hereya_token';
 const USER_KEY = '@hereya_user';

@@ -5,7 +5,11 @@ const { supabaseAdmin } = require('../utils/supabase');
 const config = require('../config');
 const logger = require('../utils/logger');
 
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+// Lazy-load OpenAI client (only if key is configured)
+let openai = null;
+if (config.openai.apiKey) {
+  openai = new OpenAI({ apiKey: config.openai.apiKey });
+}
 
 const MODERATION_ACTIONS = {
   PASS: 'passed',
@@ -20,7 +24,7 @@ class ModerationService {
    */
   async moderateMessage({ content, userId, roomId }) {
     // If no OpenAI key configured, fall through with basic keyword check only
-    if (!config.openai.apiKey) {
+    if (!openai) {
       return this._basicModerate(content);
     }
 

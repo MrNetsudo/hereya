@@ -3,12 +3,17 @@
  * All calls go through https://loci.netsudo.com/api/v1
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://loci.netsudo.com/api/v1';
+const TOKEN_KEY = '@loci_token';
 
 let _token: string | null = null;
 
 export function setToken(token: string) {
   _token = token;
+  // Fire-and-forget persistence — callers can await if needed
+  AsyncStorage.setItem(TOKEN_KEY, token).catch(() => {});
 }
 
 async function request<T>(
@@ -43,6 +48,14 @@ export const auth = {
   login: (email: string, password: string) =>
     request<{ token: string; refresh_token: string; user: LociUser }>(
       'POST', '/auth/login', { email, password }
+    ),
+  emailSignup: (name: string, email: string) =>
+    request<{ ok: boolean; message: string }>(
+      'POST', '/auth/email-signup', { name, email }
+    ),
+  verifyOtp: (name: string, email: string, code: string) =>
+    request<{ token: string; user: LociUserVerified }>(
+      'POST', '/auth/verify-otp', { name, email, code }
     ),
 };
 
@@ -103,6 +116,13 @@ export interface LociUser {
   is_anonymous: boolean;
   is_premium: boolean;
   created_at: string;
+}
+
+export interface LociUserVerified {
+  id: string;
+  display_name: string;
+  email: string;
+  email_verified: boolean;
 }
 
 export interface Venue {

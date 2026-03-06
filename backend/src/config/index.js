@@ -43,6 +43,10 @@ module.exports = {
     presence: Number(process.env.LOCI_PRESENCE_RATE_LIMIT_MAX) || 1,
     messages: Number(process.env.LOCI_MESSAGE_RATE_LIMIT_MAX) || 30,
   },
+  resend: {
+    apiKey: process.env.RESEND_API_KEY,
+    from: process.env.RESEND_FROM || 'Loci <hello@netsudo.com>',
+  },
   logging: {
     level: process.env.LOCI_LOG_LEVEL || 'info',
   },

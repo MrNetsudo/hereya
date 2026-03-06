@@ -24,6 +24,7 @@ import { LiveBadge } from './components/LiveBadge';
 import { VenueIcon } from './components/VenueIcon';
 
 const TOKEN_KEY = '@loci_token';
+const USER_KEY = '@loci_user';
 
 // Extend Venue type to include optional distance from API
 type VenueWithDistance = Venue & { distance_meters?: number };
@@ -67,21 +68,35 @@ export default function HomeScreen() {
     }
   }, [atVenue]);
 
-  // ── Initialize: get or create anonymous session ──────────
+  // ── Initialize: check for email-verified session ─────────
   useEffect(() => {
     (async () => {
       try {
-        let token = await AsyncStorage.getItem(TOKEN_KEY);
-        if (!token) {
-          const deviceId = Math.random().toString(36).slice(2);
-          const res = await api.auth.anonymous(deviceId);
-          token = res.token;
-          await AsyncStorage.setItem(TOKEN_KEY, token);
+        const token = await AsyncStorage.getItem(TOKEN_KEY);
+        const userJson = await AsyncStorage.getItem(USER_KEY);
+
+        if (!token || !userJson) {
+          router.replace('/auth');
+          return;
         }
+
+        let user: any;
+        try {
+          user = JSON.parse(userJson);
+        } catch {
+          router.replace('/auth');
+          return;
+        }
+
+        if (!user?.email_verified) {
+          router.replace('/auth');
+          return;
+        }
+
         api.setToken(token);
         setInitialized(true);
       } catch {
-        setStatusText('Failed to initialize. Check your connection.');
+        router.replace('/auth');
       }
     })();
   }, []);

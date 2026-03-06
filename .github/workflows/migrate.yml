@@ -1,0 +1,72 @@
+name: Run DB Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "run" to execute migration'
+        required: true
+        default: 'run'
+
+jobs:
+  migrate:
+    name: Run SQL Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Install pg
+        run: npm install pg
+
+      - name: Run migrations
+        env:
+          LOCI_DATABASE_URL: ${{ secrets.LOCI_DATABASE_URL }}
+        run: |
+          node -e "
+          const {Client} = require('pg');
+          
+          const SQL = \`
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
+            
+            CREATE TABLE IF NOT EXISTS otp_codes (
+              id         SERIAL PRIMARY KEY,
+              email      VARCHAR(255) NOT NULL,
+              code       VARCHAR(6) NOT NULL,
+              expires_at TIMESTAMP NOT NULL,
+              used       BOOLEAN NOT NULL DEFAULT false,
+              created_at TIMESTAMP DEFAULT NOW()
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_otp_codes_email ON otp_codes(email);
+            CREATE INDEX IF NOT EXISTS idx_otp_codes_email_used ON otp_codes(email, used);
+          \`;
+          
+          const client = new Client({
+            connectionString: process.env.LOCI_DATABASE_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 15000,
+          });
+          
+          client.connect()
+            .then(() => {
+              console.log('Connected to DB');
+              return client.query(SQL);
+            })
+            .then(() => {
+              console.log('Migration SUCCESS');
+              return client.end();
+            })
+            .catch(err => {
+              console.error('Migration FAILED:', err.message);
+              client.end();
+              process.exit(1);
+            });
+          "

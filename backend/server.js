@@ -3,17 +3,23 @@
 require('dotenv').config();
 const app = require('./src/app');
 const logger = require('./src/utils/logger');
+const { runMigrations } = require('./src/db/migrate');
 
 const PORT = process.env.PORT || 3000;
 const ENV = process.env.NODE_ENV || 'development';
 
-app.listen(PORT, () => {
-  logger.info(`LOCI API server running`, {
-    port: PORT,
-    env: ENV,
-    version: process.env.LOCI_API_VERSION || 'v1',
+(async () => {
+  // Run DB migrations on startup (idempotent)
+  await runMigrations();
+
+  app.listen(PORT, () => {
+    logger.info(`LOCI API server running`, {
+      port: PORT,
+      env: ENV,
+      version: process.env.LOCI_API_VERSION || 'v1',
+    });
   });
-});
+})();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

@@ -122,7 +122,19 @@ export default function HomeScreen() {
         let user: any;
         try { user = JSON.parse(userJson); } catch { router.replace('/auth'); return; }
         if (!user?.email_verified) { router.replace('/auth'); return; }
+
+        // Validate token is still alive against the server
         api.setToken(token);
+        try {
+          await api.me.get();
+        } catch (e: any) {
+          if (e?.status === 401) {
+            await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+            router.replace('/auth');
+            return;
+          }
+        }
+
         setInitialized(true);
         AsyncStorage.getItem('@hereya_recent_searches').then((raw) => {
           if (raw) try { setRecentSearches(JSON.parse(raw)); } catch {}

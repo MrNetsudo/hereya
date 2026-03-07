@@ -96,7 +96,7 @@ export function WelcomeCard({
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(interval);
-          onEnter();
+          setTimeout(() => onEnter(), 0);
           return 0;
         }
         return c - 1;

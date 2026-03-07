@@ -21,16 +21,27 @@ const requireAuth = async (req, res, next) => {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired token' });
     }
 
-    // Fetch our extended user record
-    const { data: lociUser, error: userError } = await supabase
+    // Fetch our extended user record — auto-create if missing
+    let { data: lociUser, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('auth_id', user.id)
       .single();
 
     if (userError || !lociUser) {
-      logger.warn('Auth user has no LOCI user record', { auth_id: user.id });
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record not found' });
+      // First-time user — create a record automatically
+      const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Anonymous';
+      const { data: created, error: createErr } = await supabase
+        .from('users')
+        .insert({ auth_id: user.id, display_name: displayName, is_anonymous: !user.email })
+        .select()
+        .single();
+      if (createErr || !created) {
+        logger.warn('Could not auto-create user record', { auth_id: user.id, err: createErr?.message });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record not found' });
+      }
+      lociUser = created;
+      logger.info('Auto-created user record', { auth_id: user.id, userId: lociUser.id });
     }
 
     if (lociUser.is_banned) {

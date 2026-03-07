@@ -85,7 +85,7 @@ class PresenceService {
     // Validate signature and expiry, then return venue
     try {
       // TODO: implement JWT verification for QR tokens
-      // const { venueId, expiresAt } = verifyJwt(token, process.env.HEREYA_JWT_SECRET);
+      // const { venueId, expiresAt } = verifyJwt(token, process.env.LOCI_JWT_SECRET);
       // For now, placeholder
       throw new Error('QR verification not yet implemented');
     } catch (err) {
@@ -179,12 +179,21 @@ class PresenceService {
       logger.warn('Could not auto-join room_members', { roomId, userId, error: error.message });
     }
 
-    // Activate warming room now that someone joined
+    // Count present members and update total_members + activate if warming
+    const { count: memberCount } = await supabaseAdmin
+      .from('room_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', roomId)
+      .eq('is_present', true);
+
     await supabaseAdmin
       .from('rooms')
-      .update({ status: 'active' })
-      .eq('id', roomId)
-      .eq('status', 'warming');
+      .update({
+        total_members: memberCount || 1,
+        status: 'active',
+        ...(memberCount > (0) ? {} : { activated_at: new Date().toISOString() }),
+      })
+      .eq('id', roomId);
   }
 
   async _updateRoomOccupancy(venueId) {
@@ -203,6 +212,12 @@ class PresenceService {
       .select('*', { count: 'exact', head: true })
       .eq('room_id', room.id)
       .eq('is_present', true);
+
+    // Always sync total_members
+    await supabaseAdmin
+      .from('rooms')
+      .update({ total_members: count || 0 })
+      .eq('id', room.id);
 
     // If occupancy hits 0, start cooling timer
     if (count === 0) {

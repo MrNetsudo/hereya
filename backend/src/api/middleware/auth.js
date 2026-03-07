@@ -1,6 +1,6 @@
 'use strict';
 
-const { supabase } = require('../../utils/supabase');
+const { supabase, supabaseAdmin } = require('../../utils/supabase');
 const logger = require('../../utils/logger');
 
 /**
@@ -50,6 +50,10 @@ const requireAuth = async (req, res, next) => {
 
     req.authUser = user;
     req.user = lociUser;
+
+    // Fire-and-forget: update last_active_at
+    supabaseAdmin.from('users').update({ last_active_at: new Date().toISOString() }).eq('id', lociUser.id).then(() => {});
+
     return next();
   } catch (err) {
     logger.error('Auth middleware error', { err });

@@ -123,7 +123,7 @@ export const messages = {
 // ── Users ────────────────────────────────────────────────
 export const me = {
   get: () => request<LociUser>('GET', '/users/me'),
-  update: (data: { display_name?: string }) => request<LociUser>('PATCH', '/users/me', data),
+  update: (data: { display_name?: string; show_as_anonymous?: boolean; home_area?: string }) => request<LociUser>('PATCH', '/users/me', data),
 };
 
 // ── Types ────────────────────────────────────────────────
@@ -133,6 +133,11 @@ export interface LociUser {
   is_anonymous: boolean;
   is_premium: boolean;
   created_at: string;
+  show_as_anonymous?: boolean;
+  total_visits?: number;
+  total_messages?: number;
+  home_area?: string;
+  email_verified?: boolean;
 }
 
 export interface LociUserVerified {

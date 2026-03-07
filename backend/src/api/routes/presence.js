@@ -5,6 +5,7 @@ const Joi = require('joi');
 const rateLimit = require('express-rate-limit');
 const { requireAuth } = require('../middleware/auth');
 const presenceService = require('../../services/presence');
+const { supabaseAdmin } = require('../../utils/supabase');
 const config = require('../../config');
 
 const router = express.Router();
@@ -39,6 +40,12 @@ router.post('/check', requireAuth, presenceLimiter, async (req, res, next) => {
       wifiBssid: value.wifi_bssid,
       userId: req.user.id,
     });
+
+    // Fire-and-forget: increment total_visits
+    supabaseAdmin.from('users')
+      .update({ total_visits: (req.user.total_visits || 0) + 1 })
+      .eq('id', req.user.id)
+      .then(() => {});
 
     return res.json({
       is_present: result.isPresent,

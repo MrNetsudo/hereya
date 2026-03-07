@@ -10,12 +10,22 @@ const router = express.Router();
 const updateSchema = Joi.object({
   display_name: Joi.string().min(2).max(30).optional(),
   avatar_url: Joi.string().uri().optional(),
+  show_as_anonymous: Joi.boolean().optional(),
+  home_area: Joi.string().max(10).optional(),
 });
 
 // GET /users/me
 router.get('/me', requireAuth, (req, res) => {
-  const { id, display_name, is_anonymous, is_premium, created_at } = req.user;
-  return res.json({ id, display_name, is_anonymous, is_premium, created_at });
+  const {
+    id, display_name, is_anonymous, is_premium,
+    show_as_anonymous, total_visits, total_messages,
+    home_area, created_at,
+  } = req.user;
+  return res.json({
+    id, display_name, is_anonymous, is_premium,
+    show_as_anonymous, total_visits, total_messages,
+    home_area, created_at,
+  });
 });
 
 // PATCH /users/me
@@ -36,7 +46,14 @@ router.patch('/me', requireAuth, async (req, res, next) => {
       .single();
 
     if (error) return next(error);
-    return res.json({ id: updated.id, display_name: updated.display_name });
+    return res.json({
+      id: updated.id,
+      display_name: updated.display_name,
+      show_as_anonymous: updated.show_as_anonymous,
+      home_area: updated.home_area,
+      total_visits: updated.total_visits,
+      total_messages: updated.total_messages,
+    });
   } catch (err) {
     return next(err);
   }

@@ -30,6 +30,8 @@ export default function SettingsScreen() {
   const [editingName, setEditingName] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showName, setShowName] = useState(true);
+  const [privacySaving, setPrivacySaving] = useState(false);
   const { contentPaddingH, isTablet } = useLayout();
 
   useEffect(() => {
@@ -44,6 +46,7 @@ export default function SettingsScreen() {
       const u = await api.me.get();
       setUser(u);
       setDisplayName(u.display_name || '');
+      setShowName(!(u.show_as_anonymous ?? false));
     } catch {
       // use cached
       const raw = await AsyncStorage.getItem(USER_KEY);
@@ -52,10 +55,24 @@ export default function SettingsScreen() {
           const u = JSON.parse(raw);
           setUser(u);
           setDisplayName(u.display_name || '');
+          setShowName(!(u.show_as_anonymous ?? false));
         } catch {}
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleShowName = async (newValue: boolean) => {
+    if (user?.is_anonymous) return; // anonymous users are always anonymous
+    setShowName(newValue);
+    setPrivacySaving(true);
+    try {
+      await api.me.update({ show_as_anonymous: !newValue });
+    } catch {
+      setShowName(!newValue); // revert on error
+    } finally {
+      setPrivacySaving(false);
     }
   };
 
@@ -205,6 +222,33 @@ export default function SettingsScreen() {
               </View>
             </>
           )}
+        </View>
+      </View>
+
+      {/* Privacy Section */}
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>PRIVACY</Text>
+        <View style={s.card}>
+          <View style={s.row}>
+            <View style={s.rowLeft}>
+              <Text style={s.rowIcon}>👁️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowLabel}>Show my name in rooms</Text>
+                <Text style={[s.rowValue, { fontSize: 12, color: '#555' }]}>
+                  {user?.is_anonymous
+                    ? 'Anonymous users always appear as Anonymous'
+                    : 'When off, you appear as Anonymous to others'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={showName}
+              onValueChange={toggleShowName}
+              disabled={!!user?.is_anonymous || privacySaving}
+              trackColor={{ false: '#2a2a3a', true: 'rgba(108,99,255,0.5)' }}
+              thumbColor={showName && !user?.is_anonymous ? '#6C63FF' : '#555'}
+            />
+          </View>
         </View>
       </View>
 

@@ -118,6 +118,12 @@ router.post('/:room_id', requireAuth, messageLimiter, async (req, res, next) => 
 
     if (insertError) return next(insertError);
 
+    // Fire-and-forget: increment total_messages
+    supabaseAdmin.from('users')
+      .update({ total_messages: (req.user.total_messages || 0) + 1 })
+      .eq('id', req.user.id)
+      .then(() => {});
+
     return res.status(201).json({
       id: message.id,
       content: message.content,

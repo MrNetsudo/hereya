@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 
 function LociWordmark() {
   return (
@@ -12,7 +13,11 @@ function LociWordmark() {
 
 function SettingsButton() {
   return (
-    <TouchableOpacity style={styles.settingsBtn} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.settingsBtn}
+      activeOpacity={0.7}
+      onPress={() => router.push('/settings')}
+    >
       <Text style={styles.settingsIcon}>⚙</Text>
     </TouchableOpacity>
   );
@@ -56,6 +61,13 @@ export default function RootLayout() {
           name="venue/[id]"
           options={{
             title: 'Venue',
+            headerBackVisible: true,
+          }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
             headerBackVisible: true,
           }}
         />

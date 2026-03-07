@@ -189,7 +189,7 @@ export default function HomeScreen() {
   const handleSearch = (text: string) => {
     setSearchQuery(text);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (text.length < 2) { setSearchResults([]); return; }
+    if (text.length < 1) { setSearchResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       try {
         const res = await api.venues.search(text, location.latitude ?? undefined, location.longitude ?? undefined);
@@ -251,8 +251,8 @@ export default function HomeScreen() {
     );
   }
 
-  const displayVenues = searchQuery.length >= 2 ? searchResults : venues;
-  const showSearch = searchQuery.length >= 2;
+  const displayVenues = searchQuery.length >= 1 ? searchResults : venues;
+  const showSearch = searchQuery.length >= 1;
 
   return (
     <View style={s.container}>

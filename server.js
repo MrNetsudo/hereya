@@ -18,7 +18,7 @@ const pool = new Pool({
   host: process.env.DB_HOST || 'netsudo-postgres',
   database: process.env.DB_NAME || 'netsudo',
   user: process.env.DB_USER || 'netsudo',
-  password: process.env.DB_PASSWORD || 'NetSudo2026!',
+  password: process.env.DB_PASSWORD || '',
   port: 5432,
 });
 
@@ -42,8 +42,8 @@ initDB().catch(e => console.error('DB init error:', e.message));
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
 async function sendTelegram(message) {
-  const token = '8756428509:AAFKeyQFaEVfOHJO0fM7fz-7t7EFvI9JCaA';
-  const chatId = '7067505491';
+  const token = process.env.TELEGRAM_BOT_TOKEN || '';
+  const chatId = process.env.TELEGRAM_CHAT_ID || '';
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -576,7 +576,7 @@ let lociQrUrl = null;
 
 app.post("/admin/loci/qr", (req, res) => {
   const { url, secret } = req.body;
-  if (secret !== "LociQR2026!") return res.status(401).json({ error: "Unauthorized" });
+  if (secret !== (process.env.LOCI_QR_SECRET || '')) return res.status(401).json({ error: "Unauthorized" });
   lociQrUrl = url;
   console.log("Loci QR URL updated:", url);
   res.json({ ok: true, url });
@@ -732,44 +732,87 @@ app.post("/api/client/tickets",requireClient,(req,res)=>res.json({ok:true,id:"TK
 app.get("/api/client/invoices",requireClient,(req,res)=>res.json({invoices:[{id:"INV-001",amount:2500,date:"2026-03-01",status:"Paid"},{id:"INV-002",amount:1800,date:"2026-03-15",status:"Unpaid"}]}));
 app.get("/api/client/projects",requireClient,(req,res)=>res.json({projects:[{name:"Network Upgrade",status:"In Progress",progress:65,eta:"2026-04-01"},{name:"Security Audit",status:"Planning",progress:10,eta:"2026-05-01"}]}));
 
-// ── Hereya Admin Panel ────────────────────────────────────────────────────────
-function requireAdmin(req,res,next){if(req.session?.user)return next();res.redirect("/login")}
-app.get("/hereya",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-admin.html")));
-app.get("/hereya/venues",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-venues.html")));
-app.get("/hereya/rooms",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-rooms.html")));
-app.get("/hereya/moderation",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-moderation.html")));
-app.get("/api/hereya/stats",(req,res)=>res.json({venues:142,activeRooms:7,users:1204,messagesToday:3847}));
-app.get("/api/hereya/venues",(req,res)=>res.json({venues:[{id:1,name:"The Rusty Nail",category:"bar",city:"New York",radius:100,active:true,partner:false},{id:2,name:"Madison Square Garden",category:"stadium",city:"New York",radius:200,active:true,partner:true}]}));
-app.post("/api/hereya/venues",(req,res)=>res.json({ok:true}));
-app.get("/api/hereya/rooms/live",(req,res)=>res.json({rooms:[{venue:"The Rusty Nail",status:"active",occupancy:47,started:new Date(Date.now()-3600000).toISOString()},{venue:"MSG",status:"warming",occupancy:12,started:new Date(Date.now()-600000).toISOString()}]}));
-app.get("/api/hereya/moderation",(req,res)=>res.json({flagged:[{id:1,snippet:"Hey check out this link...",venue:"The Rusty Nail",reason:"spam",time:new Date().toISOString()}]}));
+// ── Hereya Admin Panel (unified under /admin/hereya) ─────────────────────────
+app.get('/admin/hereya', requireAuth, (req, res) => res.sendFile(v('hereya-admin.html')));
+app.get('/admin/hereya/venues', requireAuth, (req, res) => res.sendFile(v('hereya-venues.html')));
+app.get('/admin/hereya/rooms', requireAuth, (req, res) => res.sendFile(v('hereya-rooms.html')));
+app.get('/admin/hereya/moderation', requireAuth, (req, res) => res.sendFile(v('hereya-moderation.html')));
 
+// Hereya API — real DB queries
+app.get('/admin/api/hereya/stats', requireAuth, async (req, res) => {
+  try {
+    const [venues, rooms, users, msgs] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int AS count FROM venues WHERE is_active=true"),
+      pool.query("SELECT COUNT(*)::int AS count FROM rooms WHERE status IN ('warming','active')"),
+      pool.query("SELECT COUNT(*)::int AS count FROM users"),
+      pool.query("SELECT COUNT(*)::int AS count FROM messages WHERE created_at > NOW() - INTERVAL '24 hours'"),
+    ]);
+    res.json({
+      venues: venues.rows[0].count,
+      activeRooms: rooms.rows[0].count,
+      users: users.rows[0].count,
+      messagesToday: msgs.rows[0].count,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
-// ── Client Portal ─────────────────────────────────────────────────────────────
-function requireClient(req,res,next){if(req.session?.clientId)return next();res.redirect("/client/login")}
-app.get("/client/login",(req,res)=>res.sendFile(path.join(__dirname,"views/client-login.html")));
-app.post("/client/login",(req,res)=>{req.session.clientId=req.body.email;res.redirect("/client/portal")});
-app.get("/client/portal",requireClient,(req,res)=>res.sendFile(path.join(__dirname,"views/client-portal.html")));
-app.get("/client/tickets",requireClient,(req,res)=>res.sendFile(path.join(__dirname,"views/client-tickets.html")));
-app.get("/client/invoices",requireClient,(req,res)=>res.sendFile(path.join(__dirname,"views/client-invoices.html")));
-app.get("/client/projects",requireClient,(req,res)=>res.sendFile(path.join(__dirname,"views/client-projects.html")));
-app.get("/client/logout",(req,res)=>{req.session.destroy();res.redirect("/client/login")});
-app.get("/api/client/stats",requireClient,(req,res)=>res.json({activeProjects:3,openTickets:2,pendingInvoices:1,nextMeeting:"Mon Mar 9, 2:00 PM"}));
-app.get("/api/client/tickets",requireClient,(req,res)=>res.json({tickets:[{id:"TKT-001",subject:"VPN issue",status:"In Progress",priority:"High",created:"2026-03-01"},{id:"TKT-002",subject:"New user setup",status:"Open",priority:"Normal",created:"2026-03-04"}]}));
-app.post("/api/client/tickets",requireClient,(req,res)=>res.json({ok:true,id:"TKT-"+Date.now()}));
-app.get("/api/client/invoices",requireClient,(req,res)=>res.json({invoices:[{id:"INV-001",amount:2500,date:"2026-03-01",status:"Paid"},{id:"INV-002",amount:1800,date:"2026-03-15",status:"Unpaid"}]}));
-app.get("/api/client/projects",requireClient,(req,res)=>res.json({projects:[{name:"Network Upgrade",status:"In Progress",progress:65,eta:"2026-04-01"},{name:"Security Audit",status:"Planning",progress:10,eta:"2026-05-01"}]}));
+app.get('/admin/api/hereya/venues', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, name, category, city, state, geofence_radius_m AS radius,
+              is_active AS active, is_partner AS partner, latitude, longitude
+       FROM venues ORDER BY created_at DESC LIMIT 100`
+    );
+    res.json({ venues: r.rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
-// ── Hereya Admin Panel ────────────────────────────────────────────────────────
-app.get("/hereya",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-admin.html")));
-app.get("/hereya/venues",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-venues.html")));
-app.get("/hereya/rooms",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-rooms.html")));
-app.get("/hereya/moderation",(req,res)=>res.sendFile(path.join(__dirname,"views/loci-moderation.html")));
-app.get("/api/hereya/stats",(req,res)=>res.json({venues:142,activeRooms:7,users:1204,messagesToday:3847}));
-app.get("/api/hereya/venues",(req,res)=>res.json({venues:[{id:1,name:"The Rusty Nail",category:"bar",city:"New York",radius:100,active:true,partner:false},{id:2,name:"Madison Square Garden",category:"stadium",city:"New York",radius:200,active:true,partner:true}]}));
-app.post("/api/hereya/venues",(req,res)=>res.json({ok:true}));
-app.get("/api/hereya/rooms/live",(req,res)=>res.json({rooms:[{venue:"The Rusty Nail",status:"active",occupancy:47,started:new Date(Date.now()-3600000).toISOString()},{venue:"MSG",status:"warming",occupancy:12,started:new Date(Date.now()-600000).toISOString()}]}));
-app.get("/api/hereya/moderation",(req,res)=>res.json({flagged:[{id:1,snippet:"Hey check out this link...",venue:"The Rusty Nail",reason:"spam",time:new Date().toISOString()}]}));
+app.post('/admin/api/hereya/venues', requireAuth, async (req, res) => {
+  const { name, category, city, state, latitude, longitude, radius } = req.body;
+  try {
+    const r = await pool.query(
+      `INSERT INTO venues (name, category, city, state, latitude, longitude, geofence_radius_m, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true) RETURNING *`,
+      [name, category || 'other', city || null, state || null, parseFloat(latitude) || 0, parseFloat(longitude) || 0, parseInt(radius) || 100]
+    );
+    res.json({ ok: true, venue: r.rows[0] });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/admin/api/hereya/rooms/live', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT r.id, v.name AS venue, r.status, r.total_members AS occupancy, r.activated_at AS started
+       FROM rooms r JOIN venues v ON r.venue_id=v.id
+       WHERE r.status IN ('warming','active')
+       ORDER BY r.activated_at DESC`
+    );
+    res.json({ rooms: r.rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/admin/api/hereya/moderation', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, content AS snippet, room_id, created_at AS time, 'flagged' AS reason
+       FROM messages WHERE is_flagged=true
+       ORDER BY created_at DESC LIMIT 50`
+    );
+    res.json({ flagged: r.rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Backward-compat redirects: /loci/* and /hereya/* → /admin/hereya/*
+app.get('/loci', (req, res) => res.redirect(301, '/admin/hereya'));
+app.get('/loci/venues', (req, res) => res.redirect(301, '/admin/hereya/venues'));
+app.get('/loci/rooms', (req, res) => res.redirect(301, '/admin/hereya/rooms'));
+app.get('/loci/moderation', (req, res) => res.redirect(301, '/admin/hereya/moderation'));
+app.get('/api/loci/*', (req, res) => res.redirect(301, req.path.replace('/api/loci/', '/admin/api/hereya/')));
+app.get('/hereya', (req, res) => res.redirect(301, '/admin/hereya'));
+app.get('/hereya/venues', (req, res) => res.redirect(301, '/admin/hereya/venues'));
+app.get('/hereya/rooms', (req, res) => res.redirect(301, '/admin/hereya/rooms'));
+app.get('/hereya/moderation', (req, res) => res.redirect(301, '/admin/hereya/moderation'));
+app.get('/api/hereya/*', (req, res) => res.redirect(301, req.path.replace('/api/hereya/', '/admin/api/hereya/')));
 
 // ── Billing: Invoices, Proposals, Booking ─────────────────────────────────────
 app.get("/invoices",(req,res)=>res.sendFile(path.join(__dirname,"views/invoices.html")));
@@ -801,7 +844,7 @@ async function sendEmail({ to, subject, html, replyTo }) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      "Authorization": "Bearer re_4RCa7p9J_MN3A1sZhgqkg1ejJeQPHz2Ue",
+      "Authorization": `Bearer ${process.env.RESEND_API_KEY || ''}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({

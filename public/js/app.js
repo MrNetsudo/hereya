@@ -222,6 +222,19 @@ async function initLayout({ page, title }) {
         <a href="/admin/settings" class="nav-item ${page==='settings'?'active':''}">
           <span class="nav-icon">⚙️</span><span class="nav-text">Settings</span>
         </a>
+        <div class="nav-section-label" style="margin-top:16px">Hereya</div>
+        <a href="/admin/hereya" class="nav-item ${page==='hereya'?'active':''}">
+          <span class="nav-icon">📊</span><span class="nav-text">Overview</span>
+        </a>
+        <a href="/admin/hereya/venues" class="nav-item ${page==='hereya-venues'?'active':''}">
+          <span class="nav-icon">📍</span><span class="nav-text">Venues</span>
+        </a>
+        <a href="/admin/hereya/rooms" class="nav-item ${page==='hereya-rooms'?'active':''}">
+          <span class="nav-icon">💬</span><span class="nav-text">Rooms</span>
+        </a>
+        <a href="/admin/hereya/moderation" class="nav-item ${page==='hereya-moderation'?'active':''}">
+          <span class="nav-icon">🛡</span><span class="nav-text">Moderation</span>
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-user">

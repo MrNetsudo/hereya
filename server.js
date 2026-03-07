@@ -797,6 +797,27 @@ app.get('/admin/api/hereya/stats', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Venue Stats (accurate full-dataset counts) ────────────────────────────────
+app.get('/admin/api/hereya/venues/stats', requireAuth, async (req, res) => {
+  try {
+    const countHeader = { ...SB_HEADERS, 'Prefer': 'count=exact', 'Range-Unit': 'items', 'Range': '0-0' };
+    const parseCount = r => { const cr = r.headers.get('content-range'); if (!cr) return 0; const m = cr.match(/\/(\d+)$/); return m ? parseInt(m[1]) : 0; };
+    const [totalRes, activeRes, partnerRes, radiusRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/venues?select=id`, { headers: countHeader }),
+      fetch(`${SUPABASE_URL}/rest/v1/venues?select=id&is_active=eq.true`, { headers: countHeader }),
+      fetch(`${SUPABASE_URL}/rest/v1/venues?select=id&partner_tier=not.is.null`, { headers: countHeader }),
+      fetch(`${SUPABASE_URL}/rest/v1/venues?select=geofence_radius_m&is_active=eq.true&geofence_radius_m=not.is.null&limit=10000`, { headers: SB_HEADERS }),
+    ]);
+    const totalVenues = parseCount(totalRes);
+    const activeVenues = parseCount(activeRes);
+    const partnerVenues = parseCount(partnerRes);
+    const radiusData = await radiusRes.json();
+    const radii = (Array.isArray(radiusData) ? radiusData : []).map(v => v.geofence_radius_m).filter(Boolean);
+    const avgRadius = radii.length ? Math.round(radii.reduce((a,b) => a+b,0) / radii.length) : 0;
+    res.json({ totalVenues, activeVenues, partnerVenues, avgRadius });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Venue Management (Enterprise) ─────────────────────────────────────────────
 app.get('/admin/api/hereya/venues', requireAuth, async (req, res) => {
   try {

@@ -99,18 +99,28 @@ const loginLimiter = rateLimit({
 
 // ── Helmet ────────────────────────────────────────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
-    }
-  },
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
 }));
+
+// CSP: admin is authenticated internal tool — no CSP restriction needed
+// Public routes get a permissive policy; admin gets none
+app.use((req, res, next) => {
+  if (req.path.startsWith('/admin')) {
+    res.removeHeader('Content-Security-Policy');
+  } else {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://unpkg.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self'",
+      "frame-ancestors 'self'",
+    ].join('; '));
+  }
+  next();
+});
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use('/admin', express.static(path.join(__dirname, 'public')));
@@ -838,9 +848,16 @@ app.get('/admin/api/hereya/venues', requireAuth, async (req, res) => {
 app.get('/admin/api/hereya/venues/filters', requireAuth, async (req, res) => {
   try {
     const now = Date.now();
-    if (venueFilterCache.data && now - venueFilterCache.ts < 60000) return res.json(venueFilterCache.data);
-    const result = await sbFetch('venues?select=state,city,category,partner_tier&limit=10000');
-    const rows = result.data || [];
+    if (venueFilterCache.data && now - venueFilterCache.ts < 300000) return res.json(venueFilterCache.data);
+    // Only include ACTIVE venues in filter counts; paginate to get all 11k+
+    let rows = [], offset = 0;
+    while (true) {
+      const batch = await sbFetch(`venues?select=state,city,category,partner_tier&is_active=eq.true&limit=2000&offset=${offset}`);
+      const batchRows = batch.data || [];
+      rows = rows.concat(batchRows);
+      if (batchRows.length < 2000) break;
+      offset += 2000;
+    }
     const stateMap = {}, cityMap = {}, catMap = {}, tierMap = {};
     for (const r of rows) {
       if (r.state) stateMap[r.state] = (stateMap[r.state] || 0) + 1;
@@ -935,18 +952,38 @@ app.get('/admin/api/hereya/venues/:id/activity', requireAuth, async (req, res) =
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/admin/api/hereya/users/stats', requireAuth, async (req, res) => {
+  try {
+    const { data } = await sbFetch('admin_user_stats?select=*&limit=1');
+    res.json(data && data[0] ? data[0] : {});
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/admin/api/hereya/users', requireAuth, async (req, res) => {
   try {
-    const result = await sbFetch('users?select=id,display_name,is_anonymous,created_at,updated_at&order=created_at.desc&limit=200');
-    const members = await sbFetch('room_members?select=user_id');
-    const countMap = {};
-    if (members.data) {
-      for (const m of members.data) {
-        countMap[m.user_id] = (countMap[m.user_id] || 0) + 1;
-      }
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+    const filter = req.query.filter || 'all'; // all|verified|anonymous|active
+
+    const USER_COLS = 'id,display_name,email,is_anonymous,show_as_anonymous,total_visits,total_messages,last_active_at,home_area,device_type,created_at';
+    let qs = `users?select=${USER_COLS}&order=last_active_at.desc.nullslast&limit=${limit}&offset=${offset}`;
+
+    if (filter === 'verified') qs += '&is_anonymous=eq.false';
+    else if (filter === 'anonymous') qs += '&is_anonymous=eq.true';
+    else if (filter === 'active') {
+      const since = new Date(Date.now() - 86400000).toISOString();
+      qs += `&last_active_at=gte.${since}`;
     }
-    const users = (result.data || []).map(u => ({ ...u, rooms_joined: countMap[u.id] || 0 }));
-    res.json({ users, total: result.count || 0 });
+
+    if (search) {
+      const term = encodeURIComponent(search);
+      qs += `&or=(display_name.ilike.*${term}*,email.ilike.*${term}*)`;
+    }
+
+    const result = await sbFetch(qs);
+    res.json({ users: result.data || [], total: result.count || 0, page, limit });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

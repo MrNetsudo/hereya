@@ -10,11 +10,26 @@
     .modal-overlay.show{display:flex}
     .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:90vw}
     .modal h3{margin:0 0 16px;font-size:16px}
-    .anon-badge{background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:10px;font-size:11px}
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;gap:4px}
+    .badge-anon{background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25)}
+    .badge-verified{background:rgba(16,185,129,0.12);color:#10b981;border:1px solid rgba(16,185,129,0.25)}
+    .badge-anon-pref{background:rgba(139,92,246,0.12);color:#8b5cf6;border:1px solid rgba(139,92,246,0.25)}
+    .user-avatar{width:32px;height:32px;border-radius:50%;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#6366f1;flex-shrink:0}
+    .user-cell{display:flex;align-items:center;gap:10px}
+    .user-name{font-weight:600;font-size:13px}
+    .user-email{font-size:11px;color:var(--text-muted);margin-top:1px}
+    .filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+    .filter-tabs{display:flex;gap:4px}
+    .filter-tab{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:.15s}
+    .filter-tab.active,.filter-tab:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .search-box{flex:1;min-width:180px;max-width:280px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,#1a1a2e);color:var(--text-primary);font-size:13px;outline:none}
+    .search-box:focus{border-color:var(--accent)}
+    .pagination{display:flex;align-items:center;gap:8px;justify-content:flex-end;padding:12px 16px;font-size:13px;color:var(--text-secondary)}
+    .page-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-primary);cursor:pointer;font-size:13px}
+    .page-btn:disabled{opacity:.35;cursor:default}
+    td.td-mono{font-family:monospace;font-size:12px}
     th.sortable{cursor:pointer;user-select:none}
     th.sortable:hover{color:var(--accent)}
-    th.sortable.asc::after{content:'▲';margin-left:4px;opacity:.4}
-    th.sortable.desc::after{content:'▼';margin-left:4px;opacity:.4}
   </style>
 </head>
 <body>
@@ -54,21 +69,26 @@
     <main class="main-content">
 
       <!-- Stats Strip -->
-      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
         <div class="stat-card" style="--stat-color:#6366f1">
           <div class="stat-icon-wrap" style="--stat-bg:rgba(99,102,241,0.12)">👥</div>
           <div class="stat-value" id="s-total"><span class="skeleton" style="width:40px;height:28px;display:inline-block"></span></div>
           <div class="stat-label">Total Users</div>
         </div>
+        <div class="stat-card" style="--stat-color:#10b981">
+          <div class="stat-icon-wrap" style="--stat-bg:rgba(16,185,129,0.12)">✅</div>
+          <div class="stat-value" id="s-verified"><span class="skeleton" style="width:40px;height:28px;display:inline-block"></span></div>
+          <div class="stat-label">Verified</div>
+        </div>
         <div class="stat-card" style="--stat-color:#f59e0b">
           <div class="stat-icon-wrap" style="--stat-bg:rgba(245,158,11,0.12)">👻</div>
           <div class="stat-value" id="s-anon"><span class="skeleton" style="width:40px;height:28px;display:inline-block"></span></div>
-          <div class="stat-label">Anonymous Users</div>
+          <div class="stat-label">Anonymous</div>
         </div>
-        <div class="stat-card" style="--stat-color:#10b981">
-          <div class="stat-icon-wrap" style="--stat-bg:rgba(16,185,129,0.12)">🏷</div>
-          <div class="stat-value" id="s-named"><span class="skeleton" style="width:40px;height:28px;display:inline-block"></span></div>
-          <div class="stat-label">Named Users</div>
+        <div class="stat-card" style="--stat-color:#06b6d4">
+          <div class="stat-icon-wrap" style="--stat-bg:rgba(6,182,212,0.12)">⚡</div>
+          <div class="stat-value" id="s-active"><span class="skeleton" style="width:40px;height:28px;display:inline-block"></span></div>
+          <div class="stat-label">Active Today</div>
         </div>
         <div class="stat-card" style="--stat-color:#8b5cf6">
           <div class="stat-icon-wrap" style="--stat-bg:rgba(139,92,246,0.12)">🆕</div>
@@ -79,23 +99,45 @@
 
       <!-- Users Table -->
       <div class="card" style="margin-top:24px">
-        <div class="card-header"><span class="card-title">All Users</span></div>
+        <div class="card-header">
+          <span class="card-title">All Users</span>
+        </div>
+        <div style="padding:12px 16px 0">
+          <div class="filter-bar">
+            <div class="filter-tabs">
+              <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">All</button>
+              <button class="filter-tab" data-filter="verified" onclick="setFilter('verified')">Verified</button>
+              <button class="filter-tab" data-filter="anonymous" onclick="setFilter('anonymous')">Anonymous</button>
+              <button class="filter-tab" data-filter="active" onclick="setFilter('active')">Active 24h</button>
+            </div>
+            <input class="search-box" type="text" id="search-input" placeholder="Search name or email…" oninput="onSearch(this.value)">
+          </div>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th class="sortable" data-col="display_name">Display Name</th>
-                <th>Anonymous?</th>
-                <th class="sortable" data-col="created_at">Joined</th>
-                <th class="sortable" data-col="rooms_joined">Rooms Joined</th>
+                <th style="width:40px"></th>
+                <th>Name / Email</th>
+                <th>Type</th>
+                <th>Visits</th>
+                <th>Messages</th>
+                <th>Last Active</th>
+                <th>Area</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="users-tbody">
-              <tr><td colspan="5"><div class="skeleton skeleton-row"></div></td></tr>
-              <tr><td colspan="5"><div class="skeleton skeleton-row"></div></td></tr>
+              <tr><td colspan="8"><div class="skeleton skeleton-row"></div></td></tr>
+              <tr><td colspan="8"><div class="skeleton skeleton-row"></div></td></tr>
+              <tr><td colspan="8"><div class="skeleton skeleton-row"></div></td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="pagination">
+          <span id="pagination-info"></span>
+          <button class="page-btn" id="btn-prev" onclick="prevPage()" disabled>← Prev</button>
+          <button class="page-btn" id="btn-next" onclick="nextPage()">Next →</button>
         </div>
       </div>
 
@@ -103,14 +145,13 @@
   </div>
 </div>
 
-<!-- Suspend Confirmation Modal -->
-<div class="modal-overlay" id="suspend-modal">
+<!-- View User Modal -->
+<div class="modal-overlay" id="view-modal">
   <div class="modal">
-    <h3>Suspend User</h3>
-    <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px">Are you sure you want to suspend <strong id="suspend-name"></strong>? This will anonymize their profile.</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeSuspendModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmSuspend()">Suspend</button>
+    <h3>User Details</h3>
+    <div id="view-modal-body" style="font-size:13px;color:var(--text-secondary);line-height:1.8"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeViewModal()">Close</button>
     </div>
   </div>
 </div>
@@ -120,71 +161,129 @@
 function toggleTheme(){const t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',t);localStorage.setItem('ns-theme',t);document.getElementById('theme-toggle').textContent=t==='dark'?'☀️':'🌙';}
 (function(){const t=localStorage.getItem('ns-theme')||'dark';document.documentElement.setAttribute('data-theme',t);document.getElementById('theme-toggle').textContent=t==='dark'?'☀️':'🌙';document.querySelector('.sidebar-overlay').onclick=()=>document.getElementById('app-layout').classList.remove('sidebar-open');})();
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
-function timeAgo(d){if(!d)return'';const m=Math.floor((Date.now()-new Date(d))/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);return h<24?h+'h ago':Math.floor(h/24)+'d ago';}
-function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function timeAgo(d){if(!d)return'—';const m=Math.floor((Date.now()-new Date(d))/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);return h<24?h+'h ago':Math.floor(h/24)+'d ago';}
 function toast(msg,type='success'){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast toast-'+type;el.innerHTML='<div class="toast-icon">'+(type==='success'?'✓':'✕')+'</div><div class="toast-msg">'+msg+'</div>';c.appendChild(el);requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),350)},3500);}
 
-let users=[], sortCol='created_at', sortDir='desc', suspendId=null;
+let state = { page: 1, limit: 25, filter: 'all', search: '', total: 0 };
+let searchTimer = null;
 
-function render(){
-  const tb=document.getElementById('users-tbody');
-  if(!users.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted)">No users</td></tr>';return;}
-  const sorted=[...users].sort((a,b)=>{
-    let va=a[sortCol]||'',vb=b[sortCol]||'';
-    if(typeof va==='number'&&typeof vb==='number')return sortDir==='asc'?va-vb:vb-va;
-    if(typeof va==='string')va=va.toLowerCase();if(typeof vb==='string')vb=vb.toLowerCase();
-    if(va<vb)return sortDir==='asc'?-1:1;if(va>vb)return sortDir==='asc'?1:-1;return 0;
-  });
-  tb.innerHTML=sorted.map(u=>`<tr>
-    <td><strong>${esc(u.display_name||'—')}</strong></td>
-    <td>${u.is_anonymous?'<span class="anon-badge">Anonymous</span>':'No'}</td>
-    <td class="td-muted">${fmtDate(u.created_at)}</td>
-    <td>${u.rooms_joined}</td>
-    <td style="white-space:nowrap">
-      <button class="btn btn-danger btn-xs" onclick="openSuspend('${u.id}','${esc(u.display_name||'Anonymous')}')">Suspend</button>
+function setFilter(f) {
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  state.filter = f;
+  state.page = 1;
+  load();
+}
+
+function onSearch(v) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.search = v.trim(); state.page = 1; load(); }, 350);
+}
+
+function prevPage() { if(state.page > 1){ state.page--; load(); } }
+function nextPage() { const maxPage = Math.ceil(state.total / state.limit); if(state.page < maxPage){ state.page++; load(); } }
+
+function initials(name) {
+  if (!name) return '?';
+  return name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '?';
+}
+
+function renderRow(u) {
+  const ini = initials(u.display_name || u.email || 'A');
+  const typeBadge = u.is_anonymous
+    ? '<span class="badge badge-anon">👻 Anonymous</span>'
+    : '<span class="badge badge-verified">✓ Verified</span>';
+  const anonPref = u.show_as_anonymous ? ' <span class="badge badge-anon-pref" title="Hides name in rooms">Incognito</span>' : '';
+  return `<tr>
+    <td><div class="user-avatar">${esc(ini)}</div></td>
+    <td>
+      <div class="user-cell">
+        <div>
+          <div class="user-name">${esc(u.display_name || '—')}</div>
+          <div class="user-email">${esc(u.email || '—')}</div>
+        </div>
+      </div>
     </td>
-  </tr>`).join('');
-  document.querySelectorAll('th.sortable').forEach(th=>{th.classList.remove('asc','desc');if(th.dataset.col===sortCol)th.classList.add(sortDir);});
+    <td>${typeBadge}${anonPref}</td>
+    <td class="td-muted">${u.total_visits || 0}</td>
+    <td class="td-muted">${u.total_messages || 0}</td>
+    <td class="td-muted">${timeAgo(u.last_active_at)}</td>
+    <td class="td-muted">${esc(u.home_area || '—')}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-xs" onclick="viewUser(${JSON.stringify(JSON.stringify(u))})">View</button>
+    </td>
+  </tr>`;
 }
 
-function updateStats(){
-  const total=users.length;
-  const anon=users.filter(u=>u.is_anonymous).length;
-  const named=total-anon;
-  const weekAgo=Date.now()-7*86400000;
-  const newW=users.filter(u=>new Date(u.created_at).getTime()>weekAgo).length;
-  document.getElementById('s-total').textContent=total;
-  document.getElementById('s-anon').textContent=anon;
-  document.getElementById('s-named').textContent=named;
-  document.getElementById('s-new').textContent=newW;
+function viewUser(json) {
+  const u = JSON.parse(json);
+  document.getElementById('view-modal-body').innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      ${[
+        ['ID', u.id],
+        ['Name', u.display_name || '—'],
+        ['Email', u.email || '—'],
+        ['Type', u.is_anonymous ? 'Anonymous' : 'Verified'],
+        ['Show as Anonymous', u.show_as_anonymous ? 'Yes' : 'No'],
+        ['Total Visits', u.total_visits || 0],
+        ['Total Messages', u.total_messages || 0],
+        ['Last Active', u.last_active_at ? new Date(u.last_active_at).toLocaleString() : '—'],
+        ['Home Area', u.home_area || '—'],
+        ['Device', u.device_type || '—'],
+        ['Joined', u.created_at ? new Date(u.created_at).toLocaleString() : '—'],
+      ].map(([k,v])=>`<tr><td style="color:var(--text-muted);padding:4px 8px 4px 0;white-space:nowrap">${k}</td><td style="padding:4px 0;word-break:break-all">${esc(String(v))}</td></tr>`).join('')}
+    </table>`;
+  document.getElementById('view-modal').classList.add('show');
+}
+function closeViewModal(){ document.getElementById('view-modal').classList.remove('show'); }
+document.getElementById('view-modal').onclick = e => { if(e.target===document.getElementById('view-modal'))closeViewModal(); };
+
+async function loadStats() {
+  try {
+    const d = await fetch('/admin/api/hereya/users/stats').then(r=>r.json());
+    document.getElementById('s-total').textContent = d.total_users ?? '—';
+    document.getElementById('s-verified').textContent = d.verified_users ?? '—';
+    document.getElementById('s-anon').textContent = d.anonymous_users ?? '—';
+    document.getElementById('s-active').textContent = d.active_today ?? '—';
+    document.getElementById('s-new').textContent = d.new_this_week ?? '—';
+  } catch(e) { console.error('Stats error', e); }
 }
 
-async function load(){
-  try{
-    const data=await fetch('/admin/api/hereya/users').then(r=>r.json());
-    users=data.users||[];
-    render();
-    updateStats();
-  }catch(e){console.error(e);}
+async function load() {
+  const tb = document.getElementById('users-tbody');
+  tb.innerHTML = '<tr><td colspan="8"><div class="skeleton skeleton-row"></div></td></tr>'.repeat(3);
+
+  const params = new URLSearchParams({
+    page: state.page,
+    limit: state.limit,
+    filter: state.filter,
+    search: state.search,
+  });
+
+  try {
+    const data = await fetch('/admin/api/hereya/users?' + params).then(r=>r.json());
+    const users = data.users || [];
+    state.total = data.total || 0;
+
+    if (!users.length) {
+      tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No users found</td></tr>';
+    } else {
+      tb.innerHTML = users.map(renderRow).join('');
+    }
+
+    // Pagination
+    const maxPage = Math.ceil(state.total / state.limit) || 1;
+    const start = (state.page - 1) * state.limit + 1;
+    const end = Math.min(state.page * state.limit, state.total);
+    document.getElementById('pagination-info').textContent = state.total ? `${start}–${end} of ${state.total}` : '0 results';
+    document.getElementById('btn-prev').disabled = state.page <= 1;
+    document.getElementById('btn-next').disabled = state.page >= maxPage;
+  } catch(e) {
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Error loading users</td></tr>';
+    console.error(e);
+  }
 }
 
-function openSuspend(id,name){suspendId=id;document.getElementById('suspend-name').textContent=name;document.getElementById('suspend-modal').classList.add('show');}
-function closeSuspendModal(){document.getElementById('suspend-modal').classList.remove('show');suspendId=null;}
-async function confirmSuspend(){
-  if(!suspendId)return;
-  try{
-    await fetch('/admin/api/hereya/users/'+suspendId+'/suspend',{method:'POST'});
-    const u=users.find(x=>x.id===suspendId);
-    if(u){u.is_anonymous=true;u.display_name='[suspended]';}
-    render();updateStats();closeSuspendModal();toast('User suspended');
-  }catch(e){toast('Failed','error');}
-}
-
-document.querySelectorAll('th.sortable').forEach(th=>{
-  th.onclick=()=>{if(sortCol===th.dataset.col){sortDir=sortDir==='asc'?'desc':'asc';}else{sortCol=th.dataset.col;sortDir='asc';}render();};
-});
-document.getElementById('suspend-modal').onclick=e=>{if(e.target===document.getElementById('suspend-modal'))closeSuspendModal();};
-
+loadStats();
 load();
 </script>
 </body>

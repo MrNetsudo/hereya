@@ -16,6 +16,7 @@ const venueRoutes = require('./api/routes/venues');
 const roomRoutes = require('./api/routes/rooms');
 const messageRoutes = require('./api/routes/messages');
 const userRoutes = require('./api/routes/users');
+const statsRoutes = require('./api/routes/stats');
 
 const app = express();
 
@@ -82,6 +83,7 @@ app.use(`${API}/venues`,   venueRoutes);
 app.use(`${API}/rooms`,    roomRoutes);
 app.use(`${API}/messages`, messageRoutes);
 app.use(`${API}/users`,    userRoutes);
+app.use(`${API}/stats`,    statsRoutes);
 
 // ── Error handlers ────────────────────────────────────────
 app.use(notFound);
